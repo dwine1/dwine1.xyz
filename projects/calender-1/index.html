@@ -62,6 +62,10 @@
   .cat button:hover { background: var(--accent-soft); }
   .cat .when { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
   .cat .what { min-width: 0; overflow-wrap: anywhere; }
+  .cat button.has-next { grid-template-columns: .7rem 3.6rem 1fr auto; }
+  .cat .next { text-align: right; font-family: var(--mono); font-size: .72rem; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+  .cat .next b { display: block; font-weight: 500; color: var(--fg); }
+  .cat .next.passed b { color: var(--muted); }
   .dot { width: .6rem; height: .6rem; border-radius: 999px; display: inline-block; flex: none; }
   .swatches { display: flex; flex-wrap: wrap; gap: .4rem; }
   .swatches button {
@@ -687,6 +691,32 @@
     renderIndex();
   }
 
+  // The next date that matters for note k, counted from today: next repeat, expiry date, or the note's own date.
+  function nextFor(k) {
+    const n = getNote(k);
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (n.freq !== "none") {
+      const end = parseIso(n.until);
+      const start = parseIso(k);
+      let d = daysBetween(start, t) > 0 ? t : start;
+      for (let i = 0; i < 4000 && daysBetween(d, end) >= 0; i++) {
+        if (occursOn(k, n, d)) return { label: "Next", d };
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      }
+      return { label: "Ended", d: null };
+    }
+    if (n.expiry) {
+      const e = parseIso(n.expiry.date);
+      return daysBetween(t, e) >= 0 ? { label: "Expires", d: e } : { label: "Expired", d: null };
+    }
+    const own = parseIso(k);
+    return daysBetween(t, own) >= 0 ? { label: "On", d: own } : { label: "Passed", d: null };
+  }
+  function daysLeft(d) {
+    const n = daysBetween(today, d);
+    return n === 0 ? "today" : n === 1 ? "in 1 day" : `in ${n} days`;
+  }
+
   // Right-hand column: every date in the shown month that has something, grouped by category.
   function renderIndex() {
     const y = view.getFullYear(), m = view.getMonth();
@@ -701,7 +731,7 @@
     const days = new Date(y, m + 1, 0).getDate();
     for (let day = 1; day <= days; day++) {
       const d = new Date(y, m, day);
-      notesOn(d).forEach(k => cats[0].items.push({ d, text: textOn(k, d), color: noteColor(k) }));
+      notesOn(d).forEach(k => cats[0].items.push({ d, text: k.slice(0, 10) === iso(d) ? getNote(k).text : textOn(k, d), color: noteColor(k), next: nextFor(k) }));
       holidaysOn(d).forEach(h => {
         const c = h.obs ? cats[4] : cats[{ us: 1, tr: 2, uk: 3 }[h.country]];
         c.items.push({ d, text: h.obs && h.country !== "us" ? `${h.name} (${h.country === "tr" ? "TR" : "US & TR"})` : h.name, color: c.color });
@@ -722,6 +752,17 @@
         b.innerHTML = `<i class="dot" style="background:${it.color}"></i><span class="when"></span><span class="what"></span>`;
         b.querySelector(".when").textContent = `${MONTHS[it.d.getMonth()].slice(0, 3)} ${it.d.getDate()}`;
         b.querySelector(".what").textContent = it.text;
+        if (it.next) {
+          b.classList.add("has-next");
+          const nx = document.createElement("span");
+          nx.className = "next" + (it.next.d ? "" : " passed");
+          nx.innerHTML = "<b></b>";
+          if (it.next.d) {
+            nx.querySelector("b").textContent = `${it.next.label} ${fmt(iso(it.next.d))}`;
+            nx.append(daysLeft(it.next.d));
+          } else nx.querySelector("b").textContent = it.next.label;
+          b.appendChild(nx);
+        }
         b.addEventListener("click", () => { selected = it.d; renderCalendar(); renderDetail(); renderNotes(); });
         li.appendChild(b);
         sec.querySelector("ul").appendChild(li);
