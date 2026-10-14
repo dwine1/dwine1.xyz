@@ -159,7 +159,8 @@
   .note-list .when { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
   .note-list .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tag.note { background: var(--accent); }
-  .repeat { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .75rem; }
+  .repeat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem .75rem; }
+  @media (max-width: 30rem) { .repeat { grid-template-columns: 1fr 1fr; } }
   .repeat .field { display: grid; gap: .25rem; min-width: 0; }
   .repeat select, .repeat input {
     font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
@@ -254,6 +255,19 @@
               <option value="yearly">Yearly</option>
             </select>
           </div>
+          <div class="field" id="note-span-field" hidden>
+            <label for="note-span">For</label>
+            <select id="note-span">
+              <option value="">Custom</option>
+              <option value="0,1">1 month</option>
+              <option value="0,3">3 months</option>
+              <option value="0,6">6 months</option>
+              <option value="1,0">1 year</option>
+              <option value="2,0">2 years</option>
+              <option value="5,0">5 years</option>
+              <option value="10,0">10 years</option>
+            </select>
+          </div>
           <div class="field" id="until-field" hidden>
             <label for="note-until">Until</label>
             <input type="date" id="note-until">
@@ -300,6 +314,19 @@
               <option value="biweekly">Every 2 weeks</option>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div class="field" id="q-span-field" hidden>
+            <label for="q-span">For</label>
+            <select id="q-span">
+              <option value="">Custom</option>
+              <option value="0,1">1 month</option>
+              <option value="0,3">3 months</option>
+              <option value="0,6">6 months</option>
+              <option value="1,0">1 year</option>
+              <option value="2,0">2 years</option>
+              <option value="5,0">5 years</option>
+              <option value="10,0">10 years</option>
             </select>
           </div>
           <div class="field" id="q-until-field" hidden>
@@ -773,8 +800,21 @@
   const notePick = document.getElementById("note-pick");
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
+  // "For" dropdown next to Until: "years,months" added to the start date fills Until.
+  function wireSpan(spanSel, untilInput, startOf) {
+    spanSel.addEventListener("change", () => {
+      if (!spanSel.value) return;
+      const [yy, mm] = spanSel.value.split(",").map(Number);
+      const d = parseIso(startOf());
+      untilInput.value = iso(new Date(d.getFullYear() + yy, d.getMonth() + mm, d.getDate()));
+    });
+    untilInput.addEventListener("input", () => { spanSel.value = ""; });
+  }
   function defaultUntil(k) { const d = parseIso(k); return iso(new Date(d.getFullYear(), d.getMonth() + 3, d.getDate())); }
   const noteColorPick = makeSwatches(document.getElementById("note-color"));
+  const noteSpan = document.getElementById("note-span");
+  const noteSpanField = document.getElementById("note-span-field");
+  wireSpan(noteSpan, noteUntil, () => editingKey);
   const noteExpiry = document.getElementById("note-expiry");
   const noteExpDate = document.getElementById("note-exp-date");
   const noteExpText = document.getElementById("note-exp-text");
@@ -782,6 +822,7 @@
     noteExpiry.hidden = noteFreq.value !== "none";
     noteExpDate.min = editingKey.slice(0, 10);
     untilField.hidden = noteFreq.value === "none";
+    noteSpanField.hidden = untilField.hidden;
     if (!untilField.hidden && !noteUntil.value) noteUntil.value = defaultUntil(editingKey);
     noteUntil.min = editingKey.slice(0, 10);
   }
@@ -824,6 +865,7 @@
     noteText.value = n ? n.text : "";
     noteFreq.value = n ? n.freq : "none";
     noteUntil.value = n && n.until ? n.until : "";
+    noteSpan.value = "";
     noteExpDate.value = n && n.expiry ? n.expiry.date : "";
     noteExpText.value = n && n.expiry ? n.expiry.text : "";
     noteColorPick.set(n ? n.color : "blue");
@@ -931,6 +973,7 @@
     qText.value = n ? n.text : "";
     qFreq.value = n ? n.freq : "none";
     qUntil.value = n && n.until ? n.until : "";
+    qSpan.value = "";
     qExpDate.value = n && n.expiry ? n.expiry.date : "";
     qExpText.value = n && n.expiry ? n.expiry.text : "";
     qColorPick.set(n ? n.color : "blue");
@@ -939,11 +982,15 @@
     qRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
   }
   const qColorPick = makeSwatches(document.getElementById("q-color"));
+  const qSpan = document.getElementById("q-span");
+  const qSpanField = document.getElementById("q-span-field");
+  wireSpan(qSpan, qUntil, () => qKey || iso(qDate()));
   const qExpiry = document.getElementById("q-expiry");
   const qExpDate = document.getElementById("q-exp-date");
   const qExpText = document.getElementById("q-exp-text");
   function syncQuickRepeat() {
     qUntilField.hidden = qFreq.value === "none";
+    qSpanField.hidden = qUntilField.hidden;
     qExpiry.hidden = qFreq.value !== "none";
     const start = qKey ? qKey.slice(0, 10) : iso(qDate());
     qExpDate.min = start;
