@@ -105,6 +105,34 @@
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
   .plain { margin: 0; color: var(--muted); }
+
+  .side { display: grid; gap: 1.5rem; }
+  .notes { display: grid; gap: .75rem; }
+  .notes h2 { font-family: var(--display); font-weight: 500; font-size: 1.25rem; margin: 0; }
+  .notes label { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .notes textarea {
+    font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .6rem .75rem; min-height: 7rem; resize: vertical; width: 100%;
+  }
+  .notes textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .note-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .note-actions button {
+    font: inherit; font-size: .9rem; border-radius: 6px; padding: .45rem .9rem; cursor: pointer; min-height: 2.5rem;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  .note-actions .save { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+  .note-actions .remove:hover { border-color: var(--us); color: var(--us); }
+  .note-actions button:disabled { opacity: .45; cursor: default; }
+  .note-status { font-size: .85rem; color: var(--muted); }
+  .note-list { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
+  .note-list button {
+    width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--line);
+    padding: .55rem .25rem; cursor: pointer; display: grid; grid-template-columns: 6.5rem 1fr; gap: .75rem;
+  }
+  .note-list button:hover { background: var(--accent-soft); }
+  .note-list .when { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .note-list .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag.note { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -128,11 +156,25 @@
         <span><i class="sw" style="background:var(--tr)"></i>Turkey holiday</span>
         <span><i class="sw" style="background:var(--uk)"></i>UK bank holiday</span>
         <span><i class="sw" style="background:var(--obs)"></i>Special day (not a day off)</span>
-        <span><i class="sw" style="background:var(--accent)"></i>Today</span>
+        <span><i class="sw" style="background:var(--accent)"></i>Today / has a note (✎)</span>
       </div>
     </section>
 
-    <section class="panel detail" id="detail" aria-live="polite"></section>
+    <div class="side">
+      <section class="panel detail" id="detail" aria-live="polite"></section>
+
+      <section class="panel notes" aria-label="My notes">
+        <h2>My notes</h2>
+        <label for="note-text" id="note-label"></label>
+        <textarea id="note-text" placeholder="Write a note for this date"></textarea>
+        <div class="note-actions">
+          <button class="save" id="note-save">Save note</button>
+          <button class="remove" id="note-remove">Remove note</button>
+          <span class="note-status" id="note-status" aria-live="polite"></span>
+        </div>
+        <ul class="note-list" id="note-list"></ul>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -310,6 +352,17 @@
     return null;
   }
 
+  // --- Notes (saved in this browser only) ----------------------------------
+  const NOTES_KEY = "calender1.notes";
+  function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+  function loadNotes() {
+    try { return JSON.parse(localStorage.getItem(NOTES_KEY)) || {}; } catch (e) { return {}; }
+  }
+  let notes = loadNotes();
+  function storeNotes() {
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); return true; } catch (e) { return false; }
+  }
+
   // --- Rendering ------------------------------------------------------------
   const today = new Date();
   let view = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -349,12 +402,13 @@
         }
         const hasObs = hs.some(h => h.obs);
         if (hasObs) b.classList.add("obs");
-        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}</span>`;
-        b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}`);
+        const hasNote = !!notes[iso(d)];
+        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? `<span class="tag note" title="Has a note">✎</span>` : ""}</span>`;
+        b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}${hasNote ? ", has a note" : ""}`);
         b.addEventListener("click", () => {
           selected = d;
           if (d.getMonth() !== view.getMonth()) view = new Date(d.getFullYear(), d.getMonth(), 1);
-          renderCalendar(); renderDetail();
+          renderCalendar(); renderDetail(); renderNotes();
         });
         grid.appendChild(b);
       }
@@ -393,16 +447,63 @@
     detail.innerHTML = html;
   }
 
+  const noteText = document.getElementById("note-text");
+  const noteLabel = document.getElementById("note-label");
+  const noteSave = document.getElementById("note-save");
+  const noteRemove = document.getElementById("note-remove");
+  const noteStatus = document.getElementById("note-status");
+  const noteList = document.getElementById("note-list");
+
+  function renderNotes(status) {
+    const k = iso(selected);
+    noteLabel.textContent = `Note for ${MONTHS[selected.getMonth()]} ${selected.getDate()}, ${selected.getFullYear()}`;
+    noteText.value = notes[k] || "";
+    noteRemove.disabled = !notes[k];
+    noteStatus.textContent = status || "";
+    noteList.textContent = "";
+    Object.keys(notes).sort().forEach(n => {
+      const [y, m, d] = n.split("-").map(Number);
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.innerHTML = `<span class="when"></span><span class="what"></span>`;
+      b.querySelector(".when").textContent = `${MONTHS[m - 1].slice(0, 3)} ${d}, ${y}`;
+      b.querySelector(".what").textContent = notes[n];
+      b.addEventListener("click", () => {
+        selected = new Date(y, m - 1, d);
+        view = new Date(y, m - 1, 1);
+        renderCalendar(); renderDetail(); renderNotes();
+      });
+      li.appendChild(b);
+      noteList.appendChild(li);
+    });
+  }
+
+  noteSave.addEventListener("click", () => {
+    const text = noteText.value.trim();
+    const k = iso(selected);
+    if (!text) { delete notes[k]; } else { notes[k] = text; }
+    const ok = storeNotes();
+    renderCalendar();
+    renderNotes(!ok ? "Couldn't save: this browser is blocking storage." : text ? "Saved." : "Note was empty, so nothing is saved for this date.");
+  });
+  noteRemove.addEventListener("click", () => {
+    delete notes[iso(selected)];
+    storeNotes();
+    renderCalendar();
+    renderNotes("Note removed.");
+  });
+
   document.getElementById("prev").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); renderCalendar(); });
   document.getElementById("next").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); renderCalendar(); });
   document.getElementById("today").addEventListener("click", () => {
     view = new Date(today.getFullYear(), today.getMonth(), 1);
     selected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    renderCalendar(); renderDetail();
+    renderCalendar(); renderDetail(); renderNotes();
   });
 
   renderCalendar();
   renderDetail();
+  renderNotes();
 </script>
 </body>
 </html>
