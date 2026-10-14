@@ -264,6 +264,8 @@
   .page-tools { display: flex; gap: .5rem; flex-wrap: wrap; }
   .page-tools button { font: inherit; font-size: .85rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: .35rem .75rem; cursor: pointer; min-height: 2.25rem; }
   .page-tools button:hover { border-color: var(--accent); color: var(--accent); }
+  .sync-state { font-size: .8rem; color: var(--muted); align-self: center; }
+  .sync-state.bad { color: var(--us); }
   .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
 </style>
 <script>
@@ -298,6 +300,7 @@
       <button id="btn-export" type="button" title="Save all notes to a file">⬇ Export notes</button>
       <button id="btn-import" type="button" title="Load notes from an exported file">⬆ Import notes</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <span class="sync-state" id="sync-state" aria-live="polite"></span>
     </div>
   </div>
   <h1>Calender 1</h1>
@@ -671,7 +674,9 @@
   }
   let notes = loadNotes();
   function storeNotes() {
-    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); return true; } catch (e) { return false; }
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch (e) { return false; }
+    if (window.calSync) calSync.changed();
+    return true;
   }
   function parseIso(k) { const [y, m, d] = k.slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); }
   // Notes are keyed by their start date ("2026-10-20", then "2026-10-20~2" for a second note that day). A value is a plain string (one-off) or { text, freq, until }.
@@ -1409,6 +1414,109 @@
   renderQuick();
   loadQuick(null);
 
+  // --- Cloud sync (Supabase) ------------------------------------------------
+  // Notes are encrypted in the browser with a key derived from the PIN (AES-GCM), and stored under an id that is
+  // also derived from the PIN. The server only ever sees the id and scrambled text. The anon key below is meant to
+  // be public; the database only allows fetching or saving one vault by its id.
+  window.calSync = (function () {
+    const URL_ = "https://mxzymqxbaoopwtwheyur.supabase.co";
+    const KEY_ = "";
+    const CREDS = "calender1.vault", DIRTY = "calender1.dirty", SEEN = "calender1.syncedAt";
+    const stateEl = document.getElementById("sync-state");
+    const ls = {
+      get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+      del: k => { try { localStorage.removeItem(k); } catch (e) {} },
+    };
+    let creds = null, timer = null, busy = false;
+    const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+    const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
+    function say(text, bad) { stateEl.textContent = text; stateEl.classList.toggle("bad", !!bad); }
+
+    async function derive(pin) {
+      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode("dwine1.xyz/calender-1/vault/v1"), iterations: 300000 }, base, 512);
+      return { id: hex(bits.slice(0, 32)), key: b64(bits.slice(32)) };
+    }
+    const aesKey = () => crypto.subtle.importKey("raw", unb64(creds.key), "AES-GCM", false, ["encrypt", "decrypt"]);
+    async function encrypt(obj) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(), new TextEncoder().encode(JSON.stringify(obj)));
+      return b64(iv) + "." + b64(ct);
+    }
+    async function decrypt(str) {
+      const [iv, ct] = str.split(".");
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, await aesKey(), unb64(ct));
+      return JSON.parse(new TextDecoder().decode(pt));
+    }
+    async function rpc(fn, body) {
+      const r = await fetch(`${URL_}/rest/v1/rpc/${fn}`, {
+        method: "POST",
+        headers: { apikey: KEY_, Authorization: `Bearer ${KEY_}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`${fn} ${r.status}`);
+      return r.json();
+    }
+    function refresh() { renderCalendar(); renderDetail(); renderNotes(); }
+    function saveLocal() { try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch (e) {} }
+
+    async function push() {
+      if (!creds || busy) return;
+      busy = true; say("☁ Saving…");
+      try {
+        const t = await rpc("calender1_put", { p_id: creds.id, p_data: await encrypt({ v: 1, notes }) });
+        ls.del(DIRTY); ls.set(SEEN, String(t));
+        say("☁ Synced");
+      } catch (e) { say("☁ Not synced (offline?) — saved on this device", true); }
+      busy = false;
+    }
+    async function pull() {
+      if (!creds) return;
+      say("☁ Loading…");
+      try {
+        const rows = await rpc("calender1_get", { p_id: creds.id });
+        const row = rows && rows[0];
+        if (!row) { await push(); return; }
+        const cloud = (await decrypt(row.data)).notes || {};
+        if (ls.get(DIRTY)) {
+          // Local changes not yet saved online: keep both, local wins where the same note differs.
+          notes = Object.assign({}, cloud, notes);
+          saveLocal(); refresh(); await push();
+        } else {
+          if (String(row.updated_at) !== ls.get(SEEN)) { notes = cloud; saveLocal(); refresh(); }
+          ls.set(SEEN, String(row.updated_at));
+          say("☁ Synced");
+        }
+      } catch (e) { say("☁ Not synced (offline?) — saved on this device", true); }
+    }
+
+    if (!KEY_) { say(""); return { changed() {}, unlocked() {}, locked() {} }; }
+    try { creds = JSON.parse(ls.get(CREDS)); } catch (e) { creds = null; }
+    if (creds) pull();
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && creds && !ls.get(DIRTY)) pull(); });
+    if (!ls.get(SEEN) && Object.keys(notes).length) ls.set(DIRTY, "1");
+
+    return {
+      changed() {
+        ls.set(DIRTY, "1");
+        if (!creds) return;
+        say("☁ Saving…");
+        clearTimeout(timer); timer = setTimeout(push, 800);
+      },
+      // Called by the lock screen with the PIN just entered. rekey: the PIN was changed, so move to the new vault.
+      async unlocked(pin, rekey) {
+        if (pin.length < 6) { creds = null; ls.del(CREDS); say("☁ Sync is off: use Change PIN to pick a 6-8 digit PIN", true); return; }
+        say("☁ Connecting…");
+        creds = await derive(pin);
+        ls.set(CREDS, JSON.stringify(creds));
+        if (rekey) { ls.set(DIRTY, "1"); await push(); } else await pull();
+      },
+      locked() { creds = null; ls.del(CREDS); say(""); },
+    };
+  })();
+
   // Export / Import: move notes between devices as a JSON file.
   document.getElementById("btn-export").addEventListener("click", () => {
     const data = { app: "calender-1", version: 1, exported: new Date().toISOString(), notes };
@@ -1478,9 +1586,9 @@
       mode = m;
       const copy = {
         unlock: ["Calender 1 is locked", "Enter your PIN to open it.", "Unlock"],
-        create: ["Create a PIN", "Pick a 4 to 8 digit PIN. You'll need it every time you open this page on this device.", "Save PIN"],
+        create: ["Enter or create your PIN", "Using Calender 1 on another device? Enter the same 6 to 8 digit PIN and your notes will load. New here? Pick a 6 to 8 digit PIN.", "Continue"],
         current: ["Change PIN", "Enter your current PIN first.", "Next"],
-        change: ["Change PIN", "Enter a new 4 to 8 digit PIN, twice.", "Save new PIN"],
+        change: ["Change PIN", "Enter a new 6 to 8 digit PIN, twice. Your synced notes move to the new PIN.", "Save new PIN"],
       }[m];
       title.textContent = copy[0]; text.textContent = copy[1]; go.textContent = copy[2];
       pin2.hidden = !(m === "create" || m === "change");
@@ -1500,27 +1608,30 @@
       e.preventDefault();
       const p = pin.value.trim();
       if (mode === "create" || mode === "change") {
-        if (!/^\d{4,8}$/.test(p)) { err.textContent = "Use 4 to 8 digits."; return; }
+        if (!/^\d{6,8}$/.test(p)) { err.textContent = "Use 6 to 8 digits."; return; }
         if (p !== pin2.value.trim()) { err.textContent = "The two PINs don't match."; return; }
         if (!(await setPin(p))) { err.textContent = "This browser is blocking storage, so the PIN can't be saved."; return; }
+        const wasChange = mode === "change";
         open(true);
+        if (window.calSync) calSync.unlocked(p, wasChange);
       } else if (await matches(p)) {
-        if (mode === "current") show("change"); else open(true);
+        if (mode === "current") show("change"); else { open(true); if (window.calSync) calSync.unlocked(p, false); }
       } else {
         err.textContent = "Wrong PIN."; pin.value = ""; pin.focus();
       }
     });
     cancel.addEventListener("click", () => open(false));
     forgot.addEventListener("click", () => {
-      if (!confirm("Resetting the PIN also deletes all your notes on this device, so nobody can get around the lock. Continue?")) return;
-      try { localStorage.removeItem(KEY); localStorage.removeItem("calender1.notes"); localStorage.removeItem(GRACE); } catch (e) {}
+      if (!confirm("Resetting the PIN deletes the notes saved on this device, so nobody can get around the lock. Notes synced online stay there and come back when you enter your old PIN. Continue?")) return;
+      try { ["calender1.notes", "calender1.vault", "calender1.dirty", "calender1.syncedAt", GRACE].forEach(k => localStorage.removeItem(k)); localStorage.removeItem(KEY); } catch (e) {}
       location.reload();
     });
-    $("btn-lock").addEventListener("click", () => { endGrace(); show(read() ? "unlock" : "create"); });
+    $("btn-lock").addEventListener("click", () => { endGrace(); if (window.calSync) calSync.locked(); show(read() ? "unlock" : "create"); });
     $("btn-pin").addEventListener("click", () => show(read() ? "current" : "create"));
     let until = 0;
     try { until = +localStorage.getItem(GRACE) || 0; } catch (e) {}
-    if (read() && Date.now() < until) open(false); else show(read() ? "unlock" : "create");
+    if (read() && Date.now() < until) open(false);
+    else { if (window.calSync) calSync.locked(); show(read() ? "unlock" : "create"); }
   })();
 </script>
 </body>
