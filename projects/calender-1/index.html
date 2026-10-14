@@ -63,6 +63,7 @@
   .cat .when { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
   .cat .what { min-width: 0; overflow-wrap: anywhere; }
   .cat button.has-next { grid-template-columns: .7rem 3.6rem 1fr auto; }
+  .cat button.no-when { grid-template-columns: .7rem 1fr auto; }
   .cat .next { text-align: right; font-family: var(--mono); font-size: .72rem; line-height: 1.35; color: var(--muted); white-space: nowrap; }
   .cat .next b { display: block; font-weight: 500; color: var(--fg); }
   .cat .next.passed b { color: var(--muted); }
@@ -719,8 +720,7 @@
 
   // Right-hand column: every date in the shown month that has something, grouped by category.
   function renderIndex() {
-    const y = view.getFullYear(), m = view.getMonth();
-    document.getElementById("index-sub").textContent = `Everything in ${MONTHS[m]} ${y}`;
+    document.getElementById("index-sub").textContent = "All your notes, plus holidays and special days in the next 12 months";
     const cats = [
       { title: "My notes", color: "var(--accent)", items: [] },
       { title: "US holidays", color: "var(--us)", items: [] },
@@ -728,19 +728,23 @@
       { title: "UK bank holidays", color: "var(--uk)", items: [] },
       { title: "Special days", color: "var(--obs)", items: [] },
     ];
-    const days = new Date(y, m + 1, 0).getDate();
-    for (let day = 1; day <= days; day++) {
-      const d = new Date(y, m, day);
-      notesOn(d).forEach(k => cats[0].items.push({ d, text: k.slice(0, 10) === iso(d) ? getNote(k).text : textOn(k, d), color: noteColor(k), next: nextFor(k) }));
+    // Notes: each one once, upcoming first (by next date), finished ones last.
+    cats[0].items = Object.keys(notes).map(k => {
+      const next = nextFor(k);
+      return { d: next.d || parseIso(k), text: getNote(k).text, color: noteColor(k), next, sort: next.d ? daysBetween(today, next.d) : 1e9 + daysBetween(parseIso(k), today) };
+    }).sort((a, b) => a.sort - b.sort);
+    // Holidays and special days: from today through the next 12 months.
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const end = new Date(t.getFullYear() + 1, t.getMonth(), t.getDate());
+    for (let d = t; d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
       holidaysOn(d).forEach(h => {
         const c = h.obs ? cats[4] : cats[{ us: 1, tr: 2, uk: 3 }[h.country]];
-        c.items.push({ d, text: h.obs && h.country !== "us" ? `${h.name} (${h.country === "tr" ? "TR" : "US & TR"})` : h.name, color: c.color });
+        c.items.push({ d, when: true, text: h.obs && h.country !== "us" ? `${h.name} (${h.country === "tr" ? "TR" : "US & TR"})` : h.name, color: c.color, next: { label: "", d, short: true } });
       });
     }
     const body = document.getElementById("index-body");
     body.textContent = "";
     const filled = cats.filter(c => c.items.length);
-    if (!filled.length) { body.innerHTML = `<p class="plain">Nothing on the calendar this month.</p>`; return; }
     filled.forEach(c => {
       const sec = document.createElement("div");
       sec.className = "cat";
@@ -749,21 +753,26 @@
       c.items.forEach(it => {
         const li = document.createElement("li");
         const b = document.createElement("button");
-        b.innerHTML = `<i class="dot" style="background:${it.color}"></i><span class="when"></span><span class="what"></span>`;
-        b.querySelector(".when").textContent = `${MONTHS[it.d.getMonth()].slice(0, 3)} ${it.d.getDate()}`;
+        b.className = it.when ? "has-next" : "no-when";
+        b.innerHTML = `<i class="dot" style="background:${it.color}"></i>${it.when ? `<span class="when"></span>` : ""}<span class="what"></span>`;
+        if (it.when) b.querySelector(".when").textContent = `${MONTHS[it.d.getMonth()].slice(0, 3)} ${it.d.getDate()}`;
         b.querySelector(".what").textContent = it.text;
-        if (it.next) {
-          b.classList.add("has-next");
-          const nx = document.createElement("span");
-          nx.className = "next" + (it.next.d ? "" : " passed");
+        const nx = document.createElement("span");
+        nx.className = "next" + (it.next.d ? "" : " passed");
+        if (it.next.short) nx.textContent = daysLeft(it.next.d);
+        else {
           nx.innerHTML = "<b></b>";
           if (it.next.d) {
             nx.querySelector("b").textContent = `${it.next.label} ${fmt(iso(it.next.d))}`;
             nx.append(daysLeft(it.next.d));
           } else nx.querySelector("b").textContent = it.next.label;
-          b.appendChild(nx);
         }
-        b.addEventListener("click", () => { selected = it.d; renderCalendar(); renderDetail(); renderNotes(); });
+        b.appendChild(nx);
+        b.addEventListener("click", () => {
+          selected = it.d;
+          view = new Date(it.d.getFullYear(), it.d.getMonth(), 1);
+          renderCalendar(); renderDetail(); renderNotes();
+        });
         li.appendChild(b);
         sec.querySelector("ul").appendChild(li);
       });
