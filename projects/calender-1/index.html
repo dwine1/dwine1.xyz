@@ -211,11 +211,53 @@
   .expiry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .series-info { margin: 0; font-size: .85rem; color: var(--muted); }
   .note-list .rep { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+
+  /* PIN lock: hides the page until the PIN is entered. */
+  html.locked .wrap { visibility: hidden; }
+  .lock { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: none; place-items: center; padding: 16px; }
+  html.locked .lock { display: grid; }
+  .lock-card { width: min(22rem, 100%); display: grid; gap: .9rem; text-align: center; }
+  .lock-card .icon { font-size: 2rem; }
+  .lock-card h2 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; margin: 0; }
+  .lock-card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .lock-card input {
+    font: inherit; font-family: var(--mono); font-size: 1.5rem; letter-spacing: .4em; text-align: center;
+    color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .6rem; width: 100%;
+  }
+  .lock-card input::placeholder { letter-spacing: normal; font-size: 1rem; }
+  .lock-card input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .lock-card .go { font: inherit; font-weight: 700; color: var(--surface); background: var(--accent); border: 0; border-radius: 8px; padding: .7rem; cursor: pointer; min-height: 2.75rem; }
+  .lock-card .err { color: var(--us); min-height: 1.4em; }
+  .lock-card .link { font: inherit; font-size: .85rem; color: var(--muted); background: none; border: 0; text-decoration: underline; cursor: pointer; justify-self: center; }
+  .page-tools { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .page-tools button { font: inherit; font-size: .85rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: .35rem .75rem; cursor: pointer; min-height: 2.25rem; }
+  .page-tools button:hover { border-color: var(--accent); color: var(--accent); }
+  .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
 </style>
+<script>document.documentElement.classList.add("locked");</script>
 </head>
 <body>
+<div class="lock" id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
+  <form class="lock-card" id="lock-form" autocomplete="off">
+    <div class="icon" aria-hidden="true">🔒</div>
+    <h2 id="lock-title">Calender 1 is locked</h2>
+    <p id="lock-text">Enter your PIN to open it.</p>
+    <input id="lock-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" aria-label="PIN" autocomplete="off">
+    <input id="lock-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" aria-label="Repeat PIN" placeholder="Repeat PIN" hidden autocomplete="off">
+    <button class="go" id="lock-go" type="submit">Unlock</button>
+    <p class="err" id="lock-err" aria-live="polite"></p>
+    <button class="link" id="lock-cancel" type="button" hidden>Cancel</button>
+    <button class="link" id="lock-forgot" type="button">Forgot PIN?</button>
+  </form>
+</div>
 <div class="wrap">
-  <a class="back" href="../../index.html">← All projects</a>
+  <div class="top">
+    <a class="back" href="../../index.html">← All projects</a>
+    <div class="page-tools">
+      <button id="btn-lock" type="button">🔒 Lock</button>
+      <button id="btn-pin" type="button">Change PIN</button>
+    </div>
+  </div>
   <h1>Calender 1</h1>
 
   <div class="layout">
@@ -1180,6 +1222,69 @@
   renderCalendar();
   renderDetail();
   renderNotes();
+</script>
+<script>
+  // PIN lock. The PIN is never stored, only a salted SHA-256 hash in this browser's localStorage,
+  // next to the notes. It keeps casual eyes out on a shared device; it is not real security.
+  (function () {
+    const KEY = "calender1.pin";
+    const $ = id => document.getElementById(id);
+    const form = $("lock-form"), pin = $("lock-pin"), pin2 = $("lock-pin2"), err = $("lock-err");
+    const title = $("lock-title"), text = $("lock-text"), go = $("lock-go"), cancel = $("lock-cancel"), forgot = $("lock-forgot");
+    let mode = "unlock";
+    const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
+    const write = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); return true; } catch (e) { return false; } };
+    async function hash(p, salt) {
+      const data = new TextEncoder().encode(salt + ":" + p);
+      const buf = await crypto.subtle.digest("SHA-256", data);
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    async function matches(p) { const s = read(); return !!s && (await hash(p, s.salt)) === s.hash; }
+    async function setPin(p) {
+      const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
+      return write({ salt, hash: await hash(p, salt) });
+    }
+    function show(m) {
+      mode = m;
+      const copy = {
+        unlock: ["Calender 1 is locked", "Enter your PIN to open it.", "Unlock"],
+        create: ["Create a PIN", "Pick a 4 to 8 digit PIN. You'll need it every time you open this page on this device.", "Save PIN"],
+        current: ["Change PIN", "Enter your current PIN first.", "Next"],
+        change: ["Change PIN", "Enter a new 4 to 8 digit PIN, twice.", "Save new PIN"],
+      }[m];
+      title.textContent = copy[0]; text.textContent = copy[1]; go.textContent = copy[2];
+      pin2.hidden = !(m === "create" || m === "change");
+      cancel.hidden = !(m === "current" || m === "change");
+      forgot.hidden = m === "create" || m === "change";
+      pin.value = ""; pin2.value = ""; err.textContent = "";
+      document.documentElement.classList.add("locked");
+      setTimeout(() => pin.focus(), 0);
+    }
+    function open() { document.documentElement.classList.remove("locked"); pin.value = ""; pin2.value = ""; }
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const p = pin.value.trim();
+      if (mode === "create" || mode === "change") {
+        if (!/^\d{4,8}$/.test(p)) { err.textContent = "Use 4 to 8 digits."; return; }
+        if (p !== pin2.value.trim()) { err.textContent = "The two PINs don't match."; return; }
+        if (!(await setPin(p))) { err.textContent = "This browser is blocking storage, so the PIN can't be saved."; return; }
+        open();
+      } else if (await matches(p)) {
+        if (mode === "current") show("change"); else open();
+      } else {
+        err.textContent = "Wrong PIN."; pin.value = ""; pin.focus();
+      }
+    });
+    cancel.addEventListener("click", open);
+    forgot.addEventListener("click", () => {
+      if (!confirm("Resetting the PIN also deletes all your notes on this device, so nobody can get around the lock. Continue?")) return;
+      try { localStorage.removeItem(KEY); localStorage.removeItem("calender1.notes"); } catch (e) {}
+      location.reload();
+    });
+    $("btn-lock").addEventListener("click", () => show(read() ? "unlock" : "create"));
+    $("btn-pin").addEventListener("click", () => show(read() ? "current" : "create"));
+    show(read() ? "unlock" : "create");
+  })();
 </script>
 </body>
 </html>
