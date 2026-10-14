@@ -263,7 +263,14 @@
   .page-tools button:hover { border-color: var(--accent); color: var(--accent); }
   .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
 </style>
-<script>document.documentElement.classList.add("locked");</script>
+<script>
+  // Stay unlocked for an hour after a correct PIN (checked here so the page doesn't flash the lock screen).
+  (function () {
+    let until = 0;
+    try { until = +localStorage.getItem("calender1.unlockedUntil") || 0; } catch (e) {}
+    if (Date.now() >= until) document.documentElement.classList.add("locked");
+  })();
+</script>
 </head>
 <body>
 <div class="lock" id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
@@ -1410,7 +1417,12 @@
       document.documentElement.classList.add("locked");
       setTimeout(() => pin.focus(), 0);
     }
-    function open() { document.documentElement.classList.remove("locked"); pin.value = ""; pin2.value = ""; }
+    const GRACE = "calender1.unlockedUntil", HOUR = 60 * 60 * 1000;
+    function open(fresh) {
+      if (fresh) { try { localStorage.setItem(GRACE, String(Date.now() + HOUR)); } catch (e) {} }
+      document.documentElement.classList.remove("locked"); pin.value = ""; pin2.value = "";
+    }
+    function endGrace() { try { localStorage.removeItem(GRACE); } catch (e) {} }
     form.addEventListener("submit", async e => {
       e.preventDefault();
       const p = pin.value.trim();
@@ -1418,22 +1430,24 @@
         if (!/^\d{4,8}$/.test(p)) { err.textContent = "Use 4 to 8 digits."; return; }
         if (p !== pin2.value.trim()) { err.textContent = "The two PINs don't match."; return; }
         if (!(await setPin(p))) { err.textContent = "This browser is blocking storage, so the PIN can't be saved."; return; }
-        open();
+        open(true);
       } else if (await matches(p)) {
-        if (mode === "current") show("change"); else open();
+        if (mode === "current") show("change"); else open(true);
       } else {
         err.textContent = "Wrong PIN."; pin.value = ""; pin.focus();
       }
     });
-    cancel.addEventListener("click", open);
+    cancel.addEventListener("click", () => open(false));
     forgot.addEventListener("click", () => {
       if (!confirm("Resetting the PIN also deletes all your notes on this device, so nobody can get around the lock. Continue?")) return;
-      try { localStorage.removeItem(KEY); localStorage.removeItem("calender1.notes"); } catch (e) {}
+      try { localStorage.removeItem(KEY); localStorage.removeItem("calender1.notes"); localStorage.removeItem(GRACE); } catch (e) {}
       location.reload();
     });
-    $("btn-lock").addEventListener("click", () => show(read() ? "unlock" : "create"));
+    $("btn-lock").addEventListener("click", () => { endGrace(); show(read() ? "unlock" : "create"); });
     $("btn-pin").addEventListener("click", () => show(read() ? "current" : "create"));
-    show(read() ? "unlock" : "create");
+    let until = 0;
+    try { until = +localStorage.getItem(GRACE) || 0; } catch (e) {}
+    if (read() && Date.now() < until) open(false); else show(read() ? "unlock" : "create");
   })();
 </script>
 </body>
