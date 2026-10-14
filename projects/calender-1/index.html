@@ -31,6 +31,7 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
   .wrap {
     max-width: 68rem; margin: 0 auto; padding-block: 2rem 4rem;
@@ -140,6 +141,14 @@
     border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
   }
   .repeat select:focus-visible, .repeat input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .facts .my-notes { display: grid; gap: .25rem; }
+  .facts .my-notes span { white-space: pre-wrap; }
+  .note-pick { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .note-pick button {
+    font: inherit; font-size: .85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; padding: .3rem .75rem; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .note-pick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
   .series-info { margin: 0; font-size: .85rem; color: var(--muted); }
   .note-list .rep { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
 </style>
@@ -175,6 +184,7 @@
       <section class="panel notes" aria-label="My notes">
         <h2>My notes</h2>
         <label for="note-text" id="note-label"></label>
+        <div class="note-pick" id="note-pick" hidden></div>
         <p class="series-info" id="series-info" hidden></p>
         <textarea id="note-text" placeholder="Write a note for this date"></textarea>
         <div class="repeat">
@@ -389,8 +399,8 @@
   function storeNotes() {
     try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); return true; } catch (e) { return false; }
   }
-  function parseIso(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
-  // Notes are keyed by their start date. A value is a plain string (one-off) or { text, freq, until }.
+  function parseIso(k) { const [y, m, d] = k.slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); }
+  // Notes are keyed by their start date ("2026-10-20", then "2026-10-20~2" for a second note that day). A value is a plain string (one-off) or { text, freq, until }.
   function getNote(k) {
     const v = notes[k];
     if (v == null) return null;
@@ -413,8 +423,14 @@
   }
   // Start-date keys of every note that lands on date d; its own one-off/start note first.
   function notesOn(d) {
-    const own = iso(d);
-    return Object.keys(notes).filter(k => occursOn(k, getNote(k), d)).sort((a, b) => (b === own) - (a === own));
+    return Object.keys(notes).filter(k => occursOn(k, getNote(k), d)).sort();
+  }
+  function newKey(d) {
+    const base = iso(d);
+    if (!notes[base]) return base;
+    let i = 2;
+    while (notes[`${base}~${i}`]) i++;
+    return `${base}~${i}`;
   }
 
   // --- Rendering ------------------------------------------------------------
@@ -476,6 +492,7 @@
     const totalDays = isLeap(d.getFullYear()) ? 366 : 365;
     const doy = dayOfYear(d);
     const nh = nextHoliday(d);
+    const myNotes = notesOn(d);
 
     let html = `<p class="kicker">${DAYS[d.getDay()]} · ${relative(rel)}</p>
       <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>`;
@@ -496,9 +513,11 @@
         <dt>ISO week</dt><dd>${isoWeek(d)}</dd>
         <dt>Quarter</dt><dd>Q${Math.floor(d.getMonth() / 3) + 1}</dd>
         <dt>From today</dt><dd>${relative(rel)}</dd>
+        ${myNotes.length ? `<dt>My notes</dt><dd class="my-notes">${myNotes.map(k => `<span></span>`).join("")}</dd>` : ""}
         ${nh ? `<dt>Next public holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
       </dl>`;
     detail.innerHTML = html;
+    detail.querySelectorAll(".my-notes span").forEach((el, i) => { el.textContent = getNote(myNotes[i]).text; });
   }
 
   const noteText = document.getElementById("note-text");
@@ -513,23 +532,46 @@
   const untilField = document.getElementById("until-field");
   const seriesInfo = document.getElementById("series-info");
   let editingKey = null;
+  let editingDate = null;
+  const notePick = document.getElementById("note-pick");
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
   function defaultUntil(k) { const d = parseIso(k); return iso(new Date(d.getFullYear(), d.getMonth() + 3, d.getDate())); }
   function syncRepeatUI() {
     untilField.hidden = noteFreq.value === "none";
     if (!untilField.hidden && !noteUntil.value) noteUntil.value = defaultUntil(editingKey);
-    noteUntil.min = editingKey;
+    noteUntil.min = editingKey.slice(0, 10);
   }
   noteFreq.addEventListener("change", syncRepeatUI);
 
   function renderNotes(status) {
     const own = iso(selected);
     const on = notesOn(selected);
-    editingKey = on.length ? on[0] : own;
+    // Keep editing the same note while on the same date; otherwise start on the date's first note (or a blank one).
+    const keep = editingDate === own && editingKey &&
+      (notes[editingKey] ? on.includes(editingKey) : editingKey.startsWith(own));
+    if (!keep) editingKey = on.length ? on[0] : newKey(selected);
+    editingDate = own;
     const n = getNote(editingKey);
+
+    notePick.textContent = "";
+    notePick.hidden = on.length === 0;
+    on.forEach(k => {
+      const b = document.createElement("button");
+      b.textContent = getNote(k).text.split("\n")[0];
+      b.setAttribute("aria-pressed", String(k === editingKey));
+      b.addEventListener("click", () => { editingKey = k; renderNotes(); });
+      notePick.appendChild(b);
+    });
+    if (on.length) {
+      const add = document.createElement("button");
+      add.textContent = "+ New note";
+      add.setAttribute("aria-pressed", String(!n));
+      add.addEventListener("click", () => { editingKey = newKey(selected); renderNotes(); noteText.focus(); });
+      notePick.appendChild(add);
+    }
     noteLabel.textContent = `Note for ${MONTHS[selected.getMonth()]} ${selected.getDate()}, ${selected.getFullYear()}`;
-    if (n && editingKey !== own) {
+    if (n && editingKey.slice(0, 10) !== own) {
       seriesInfo.hidden = false;
       seriesInfo.textContent = `This is a repeating note that started on ${fmt(editingKey)}. Changes here apply to the whole series.`;
     } else seriesInfo.hidden = true;
@@ -572,12 +614,12 @@
     const until = noteUntil.value;
     if (text && freq !== "none") {
       if (!until) { noteStatus.textContent = "Pick an end date for the repeat."; return; }
-      if (until < editingKey) { noteStatus.textContent = `The end date has to be on or after ${fmt(editingKey)}.`; return; }
+      if (until < editingKey.slice(0, 10)) { noteStatus.textContent = `The end date has to be on or after ${fmt(editingKey)}.`; return; }
     }
     if (!text) delete notes[editingKey];
     else notes[editingKey] = freq === "none" ? text : { text, freq, until };
     const ok = storeNotes();
-    renderCalendar();
+    renderCalendar(); renderDetail();
     renderNotes(!ok ? "Couldn't save: this browser is blocking storage."
       : !text ? "Note was empty, so nothing is saved for this date."
       : freq === "none" ? "Saved." : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} until ${fmt(until)}.`);
@@ -586,7 +628,8 @@
     const wasSeries = getNote(editingKey) && getNote(editingKey).freq !== "none";
     delete notes[editingKey];
     storeNotes();
-    renderCalendar();
+    editingKey = null;
+    renderCalendar(); renderDetail();
     renderNotes(wasSeries ? "Repeating note removed from every date." : "Note removed.");
   });
 
