@@ -257,6 +257,10 @@
               <option value="weekly">Weekly</option>
               <option value="biweekly">Every 2 weeks</option>
               <option value="monthly">Monthly</option>
+              <option value="m3">Every 3 months</option>
+              <option value="m4">Every 4 months</option>
+              <option value="m6">Every 6 months</option>
+              <option value="m9">Every 9 months</option>
               <option value="yearly">Yearly</option>
             </select>
           </div>
@@ -318,6 +322,10 @@
               <option value="weekly">Weekly</option>
               <option value="biweekly">Every 2 weeks</option>
               <option value="monthly">Monthly</option>
+              <option value="m3">Every 3 months</option>
+              <option value="m4">Every 4 months</option>
+              <option value="m6">Every 6 months</option>
+              <option value="m9">Every 9 months</option>
               <option value="yearly">Yearly</option>
             </select>
           </div>
@@ -556,7 +564,7 @@
     if (v == null) return null;
     return typeof v === "string" ? { text: v, freq: "none", until: null } : v;
   }
-  const FREQ_LABEL = { daily: "Daily", weekly: "Weekly", biweekly: "Every 2 weeks", monthly: "Monthly", yearly: "Yearly" };
+  const FREQ_LABEL = { daily: "Daily", weekly: "Weekly", biweekly: "Every 2 weeks", monthly: "Monthly", m3: "Every 3 months", m4: "Every 4 months", m6: "Every 6 months", m9: "Every 9 months", yearly: "Yearly" };
   function occursOn(k, n, d) {
     const start = parseIso(k);
     const diff = daysBetween(start, d);
@@ -568,6 +576,10 @@
       case "weekly": return diff % 7 === 0;
       case "biweekly": return diff % 14 === 0;
       case "monthly": return d.getDate() === start.getDate();
+      case "m3": case "m4": case "m6": case "m9": {
+        const months = (d.getFullYear() - start.getFullYear()) * 12 + d.getMonth() - start.getMonth();
+        return d.getDate() === start.getDate() && months % Number(n.freq.slice(1)) === 0;
+      }
       case "yearly": return d.getDate() === start.getDate() && d.getMonth() === start.getMonth();
     }
     return false;
