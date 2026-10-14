@@ -142,7 +142,15 @@
   }
   .repeat select:focus-visible, .repeat input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .facts .my-notes { display: grid; gap: .25rem; }
-  .facts .my-notes span { white-space: pre-wrap; }
+  .facts .my-notes .mn { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .6rem; }
+  .facts .my-notes .txt { white-space: pre-wrap; }
+  .facts .my-notes .mn.done .txt { text-decoration: line-through; color: var(--muted); }
+  .status-select {
+    font: inherit; font-size: .8rem; border-radius: 999px; padding: .15rem .5rem; cursor: pointer;
+    border: 1px solid var(--obs); background: var(--obs-soft); color: var(--fg);
+  }
+  .status-select.done { border-color: var(--tr); background: var(--tr-soft); }
+  .tag.note.done { background: var(--tr); }
   .note-pick { display: flex; flex-wrap: wrap; gap: .4rem; }
   .note-pick button {
     font: inherit; font-size: .85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
@@ -188,6 +196,13 @@
         <p class="series-info" id="series-info" hidden></p>
         <textarea id="note-text" placeholder="Write a note for this date"></textarea>
         <div class="repeat">
+          <div class="field" id="status-field" hidden style="grid-column: 1 / -1">
+            <label for="note-status-select" id="status-label">Status</label>
+            <select id="note-status-select" class="status-select">
+              <option value="waiting">◷ Waiting</option>
+              <option value="done">✓ Completed</option>
+            </select>
+          </div>
           <div class="field">
             <label for="note-freq">Repeat</label>
             <select id="note-freq">
@@ -425,6 +440,16 @@
   function notesOn(d) {
     return Object.keys(notes).filter(k => occursOn(k, getNote(k), d)).sort();
   }
+  // Repeating notes track Completed/Waiting per occurrence date in note.done.
+  const isDone = (k, d) => { const n = getNote(k); return !!(n && n.done && n.done[iso(d)]); };
+  function setDone(k, d, done) {
+    const n = getNote(k);
+    if (!n || n.freq === "none") return;
+    n.done = n.done || {};
+    if (done) n.done[iso(d)] = true; else delete n.done[iso(d)];
+    notes[k] = n;
+    storeNotes();
+  }
   function newKey(d) {
     const base = iso(d);
     if (!notes[base]) return base;
@@ -472,8 +497,10 @@
         }
         const hasObs = hs.some(h => h.obs);
         if (hasObs) b.classList.add("obs");
-        const hasNote = notesOn(d).length > 0;
-        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? `<span class="tag note" title="Has a note">✎</span>` : ""}</span>`;
+        const dayNotes = notesOn(d);
+        const hasNote = dayNotes.length > 0;
+        const allDone = hasNote && dayNotes.every(k => getNote(k).freq !== "none" && isDone(k, d));
+        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? `<span class="tag note${allDone ? " done" : ""}" title="${allDone ? "Completed" : "Has a note"}">${allDone ? "✓" : "✎"}</span>` : ""}</span>`;
         b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}${hasNote ? ", has a note" : ""}`);
         b.addEventListener("click", () => {
           selected = d;
@@ -513,11 +540,24 @@
         <dt>ISO week</dt><dd>${isoWeek(d)}</dd>
         <dt>Quarter</dt><dd>Q${Math.floor(d.getMonth() / 3) + 1}</dd>
         <dt>From today</dt><dd>${relative(rel)}</dd>
-        ${myNotes.length ? `<dt>My notes</dt><dd class="my-notes">${myNotes.map(k => `<span></span>`).join("")}</dd>` : ""}
+        ${myNotes.length ? `<dt>My notes</dt><dd class="my-notes">${myNotes.map(() => `<span class="mn"><span class="txt"></span></span>`).join("")}</dd>` : ""}
         ${nh ? `<dt>Next public holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
       </dl>`;
     detail.innerHTML = html;
-    detail.querySelectorAll(".my-notes span").forEach((el, i) => { el.textContent = getNote(myNotes[i]).text; });
+    detail.querySelectorAll(".my-notes .mn").forEach((el, i) => {
+      const k = myNotes[i], n = getNote(k);
+      el.querySelector(".txt").textContent = n.text;
+      if (n.freq === "none") return;
+      const done = isDone(k, d);
+      el.classList.toggle("done", done);
+      const sel = document.createElement("select");
+      sel.className = "status-select" + (done ? " done" : "");
+      sel.setAttribute("aria-label", `Status of "${n.text}" on this date`);
+      sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>`;
+      sel.value = done ? "done" : "waiting";
+      sel.addEventListener("change", () => { setDone(k, d, sel.value === "done"); renderCalendar(); renderDetail(); renderNotes(); });
+      el.appendChild(sel);
+    });
   }
 
   const noteText = document.getElementById("note-text");
@@ -533,6 +573,13 @@
   const seriesInfo = document.getElementById("series-info");
   let editingKey = null;
   let editingDate = null;
+  const statusField = document.getElementById("status-field");
+  const statusSelect = document.getElementById("note-status-select");
+  const statusLabel = document.getElementById("status-label");
+  statusSelect.addEventListener("change", () => {
+    setDone(editingKey, selected, statusSelect.value === "done");
+    renderCalendar(); renderDetail(); renderNotes(statusSelect.value === "done" ? "Marked completed for this date." : "Marked waiting for this date.");
+  });
   const notePick = document.getElementById("note-pick");
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
@@ -580,6 +627,13 @@
     noteUntil.value = n && n.until ? n.until : "";
     syncRepeatUI();
     noteRemove.disabled = !n;
+    statusField.hidden = !(n && n.freq !== "none");
+    if (!statusField.hidden) {
+      const done = isDone(editingKey, selected);
+      statusSelect.value = done ? "done" : "waiting";
+      statusSelect.classList.toggle("done", done);
+      statusLabel.textContent = `Status on ${MONTHS[selected.getMonth()].slice(0, 3)} ${selected.getDate()}`;
+    }
     noteRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
     noteStatus.textContent = status || "";
 
@@ -617,7 +671,10 @@
       if (until < editingKey.slice(0, 10)) { noteStatus.textContent = `The end date has to be on or after ${fmt(editingKey)}.`; return; }
     }
     if (!text) delete notes[editingKey];
-    else notes[editingKey] = freq === "none" ? text : { text, freq, until };
+    else {
+      const prev = getNote(editingKey);
+      notes[editingKey] = freq === "none" ? text : { text, freq, until, done: (prev && prev.done) || {} };
+    }
     const ok = storeNotes();
     renderCalendar(); renderDetail();
     renderNotes(!ok ? "Couldn't save: this browser is blocking storage."
