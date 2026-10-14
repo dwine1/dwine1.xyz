@@ -199,6 +199,10 @@
   }
   .status-select.done { border-color: var(--tr); background: var(--tr-soft); }
   .status-select.moved { border-color: var(--uk); background: var(--uk-soft); }
+  .status-select.cancelled { border-color: var(--us); background: var(--us-soft); }
+  .keep-btn { font: inherit; font-size: .8rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: .15rem .6rem; cursor: pointer; }
+  .keep-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .facts .my-notes .mn.cancelled .txt { text-decoration: line-through; color: var(--muted); }
   .status-ctrl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
   .status-ctrl input[type=date] {
     font: inherit; font-size: .8rem; color: var(--fg); background: var(--bg); border: 1px solid var(--uk);
@@ -691,11 +695,19 @@
   // Per-occurrence status of a repeating note: waiting, done, or moved (note.moved maps original date -> new date).
   const movedTo = (k, d) => { const n = getNote(k); return n && n.moved ? n.moved[iso(d)] || null : null; };
   const movedFrom = (k, d) => { const n = getNote(k); if (!n || !n.moved) return null; const e = Object.entries(n.moved).find(([, to]) => to === iso(d)); return e ? e[0] : null; };
-  const statusOf = (k, d) => movedTo(k, d) ? "moved" : isDone(k, d) ? "done" : "waiting";
+  const isCancelled = (k, d) => { const n = getNote(k); return !!(n && n.cancelled && n.cancelled[iso(d)]); };
+  const statusOf = (k, d) => movedTo(k, d) ? "moved" : isCancelled(k, d) ? "cancelled" : isDone(k, d) ? "done" : "waiting";
+  function setCancelled(k, d, on) {
+    const n = getNote(k);
+    n.cancelled = n.cancelled || {};
+    if (on) n.cancelled[iso(d)] = true; else delete n.cancelled[iso(d)];
+    notes[k] = n;
+    storeNotes();
+  }
   function setMoved(k, d, to) {
     const n = getNote(k);
     n.moved = n.moved || {};
-    if (to) { n.moved[iso(d)] = to; if (n.done) delete n.done[iso(d)]; } else delete n.moved[iso(d)];
+    if (to) { n.moved[iso(d)] = to; if (n.done) delete n.done[iso(d)]; if (n.cancelled) delete n.cancelled[iso(d)]; } else delete n.moved[iso(d)];
     notes[k] = n;
     storeNotes();
   }
@@ -708,7 +720,7 @@
     const from = movedFrom(k, d);
     sel.className = "status-select" + (st === "waiting" ? "" : " " + st);
     sel.setAttribute("aria-label", `Status of "${getNote(k).text}" on this date`);
-    sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>${from ? "" : `<option value="moved">↷ Delayed / changed</option>`}`;
+    sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>${from ? "" : `<option value="moved">↷ Delayed / changed</option>`}<option value="cancelled">✕ Cancelled</option>`;
     sel.value = st;
     wrap.appendChild(sel);
     const date = document.createElement("input");
@@ -717,18 +729,30 @@
     const lbl = document.createElement("span");
     lbl.className = "moved-lbl";
     lbl.textContent = "to";
-    if (st === "moved") { date.value = movedTo(k, d); wrap.append(lbl, date); }
+    // "Keep the same" closes the new-date box and leaves this occurrence on its original date.
+    const keep = document.createElement("button");
+    keep.type = "button";
+    keep.className = "keep-btn";
+    keep.textContent = "Keep the same";
+    keep.addEventListener("click", () => {
+      if (movedTo(k, d)) { setMoved(k, d, null); after("Kept on its original date."); return; }
+      sel.value = st === "moved" ? "waiting" : st;
+      sel.className = "status-select" + (sel.value === "waiting" ? "" : " " + sel.value);
+      lbl.remove(); date.remove(); keep.remove();
+    });
+    if (st === "moved") { date.value = movedTo(k, d); wrap.append(lbl, date, keep); }
     sel.addEventListener("change", () => {
       if (sel.value === "moved") {
         sel.className = "status-select moved";
-        wrap.append(lbl, date);
+        wrap.append(lbl, date, keep);
         date.focus();
         try { date.showPicker(); } catch (e) {}
         return;
       }
       if (movedTo(k, d)) setMoved(k, d, null);
+      setCancelled(k, d, sel.value === "cancelled");
       setDone(k, d, sel.value === "done");
-      after(sel.value === "done" ? "Marked completed for this date." : "Marked waiting for this date.");
+      after({ done: "Marked completed for this date.", waiting: "Marked waiting for this date.", cancelled: "Cancelled for this date." }[sel.value]);
     });
     date.addEventListener("change", () => {
       if (!date.value || date.value === iso(d)) return;
@@ -775,7 +799,7 @@
   }
   // Build what gets stored: a string, a repeating series, or a one-off with an expiry date.
   function buildNote(text, freq, until, expDate, expText, prev, color) {
-    if (freq !== "none") return { text, freq, until, color, done: (prev && prev.done) || {}, moved: (prev && prev.moved) || {} };
+    if (freq !== "none") return { text, freq, until, color, done: (prev && prev.done) || {}, moved: (prev && prev.moved) || {}, cancelled: (prev && prev.cancelled) || {} };
     if (expDate) return { text, freq: "none", until: null, color, expiry: { date: expDate, text: expText } };
     return { text, freq: "none", until: null, color };
   }
@@ -855,7 +879,7 @@
       const start = parseIso(k);
       let d = daysBetween(start, t) > 0 ? t : start;
       for (let i = 0; i < 4000 && daysBetween(d, end) >= 0; i++) {
-        if (occursOn(k, n, d) && !(n.moved && n.moved[iso(d)])) return { label: "Next", d };
+        if (occursOn(k, n, d) && !(n.moved && n.moved[iso(d)]) && !(n.cancelled && n.cancelled[iso(d)])) return { label: "Next", d };
         d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
       }
       return { label: "Ended", d: null };
@@ -888,7 +912,7 @@
       const items = [];
       notesOn(d).forEach(k => {
         const n = getNote(k);
-        const status = n.freq !== "none" ? ({ done: " · completed", waiting: " · waiting", moved: " · delayed" })[statusOf(k, d)] : "";
+        const status = n.freq !== "none" ? ({ done: " · completed", waiting: " · waiting", moved: " · delayed", cancelled: " · cancelled" })[statusOf(k, d)] : "";
         items.push({ color: noteColor(k), text: textOn(k, d), kind: "My note" + status });
       });
       holidaysOn(d).forEach(h => items.push({
@@ -1025,6 +1049,7 @@
       const st = statusOf(k, d);
       el.classList.toggle("done", st === "done");
       el.classList.toggle("moved", st === "moved");
+      el.classList.toggle("cancelled", st === "cancelled");
       el.appendChild(statusControl(k, d, () => { renderCalendar(); renderDetail(); renderNotes(); }));
     });
   }
