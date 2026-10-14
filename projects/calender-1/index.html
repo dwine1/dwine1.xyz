@@ -34,7 +34,7 @@
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
   .wrap {
-    max-width: 68rem; margin: 0 auto; padding-block: 2rem 4rem;
+    max-width: 96rem; margin: 0 auto; padding-block: 2rem 4rem;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     display: grid; gap: 1.5rem;
@@ -44,8 +44,33 @@
   h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .8fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 80rem) { .layout { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } .index { grid-column: 2; } }
+  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } .index { grid-column: auto; } }
+
+  .index { display: grid; gap: 1rem; }
+  .index h2 { font-family: var(--display); font-weight: 500; font-size: 1.25rem; margin: 0; }
+  #index-body { display: grid; gap: 1.1rem; }
+  .index .sub { margin: -.75rem 0 0; font-size: .85rem; color: var(--muted); }
+  .cat h3 { margin: 0 0 .35rem; font-family: var(--mono); font-weight: 500; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: .4rem; }
+  .cat ul { list-style: none; margin: 0; padding: 0; display: grid; }
+  .cat button {
+    width: 100%; text-align: left; font: inherit; font-size: .9rem; color: inherit; background: none; border: 0;
+    border-bottom: 1px solid var(--line); padding: .4rem .25rem; cursor: pointer;
+    display: grid; grid-template-columns: .7rem 3.6rem 1fr; gap: .5rem; align-items: baseline;
+  }
+  .cat button:hover { background: var(--accent-soft); }
+  .cat .when { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+  .cat .what { min-width: 0; overflow-wrap: anywhere; }
+  .dot { width: .6rem; height: .6rem; border-radius: 999px; display: inline-block; flex: none; }
+  .swatches { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .swatches button {
+    width: 1.9rem; height: 1.9rem; border-radius: 999px; border: 2px solid transparent; cursor: pointer; padding: 0;
+    box-shadow: inset 0 0 0 2px var(--surface);
+  }
+  .swatches button[aria-checked="true"] { border-color: var(--fg); }
+  .lbl { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .color-field { display: grid; gap: .3rem; }
 
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; }
 
@@ -209,6 +234,7 @@
         <div class="note-pick" id="note-pick" hidden></div>
         <p class="series-info" id="series-info" hidden></p>
         <textarea id="note-text" placeholder="Write a note for this date"></textarea>
+        <div class="color-field"><span class="lbl" id="note-color-lbl">Color</span><div class="swatches" id="note-color" role="radiogroup" aria-labelledby="note-color-lbl"></div></div>
         <div class="repeat">
           <div class="field" id="status-field" hidden style="grid-column: 1 / -1">
             <label for="note-status-select" id="status-label">Status</label>
@@ -263,6 +289,7 @@
           <select id="q-which"></select>
         </div>
         <textarea id="q-text" placeholder="Write your note"></textarea>
+        <div class="color-field"><span class="lbl" id="q-color-lbl">Color</span><div class="swatches" id="q-color" role="radiogroup" aria-labelledby="q-color-lbl"></div></div>
         <div class="repeat">
           <div class="field">
             <label for="q-freq">Frequency</label>
@@ -297,6 +324,12 @@
         </div>
       </section>
     </div>
+
+    <section class="panel index" aria-label="Dates by category">
+      <h2>By category</h2>
+      <p class="sub" id="index-sub"></p>
+      <div id="index-body"></div>
+    </section>
   </div>
 </div>
 
@@ -521,6 +554,30 @@
     notes[k] = n;
     storeNotes();
   }
+  // Note colors: each note picks one; it tints the note's tag on the calendar and its dot in lists.
+  const NOTE_COLORS = [
+    ["blue", "#2b6cd8"], ["red", "#d64545"], ["orange", "#e07b1a"], ["yellow", "#c99a00"],
+    ["green", "#2e9d5b"], ["teal", "#1595a3"], ["purple", "#8a4fd8"], ["pink", "#d6458f"],
+  ];
+  const colorHex = id => (NOTE_COLORS.find(c => c[0] === id) || NOTE_COLORS[0])[1];
+  const noteColor = k => colorHex(getNote(k).color);
+  function makeSwatches(el, onPick) {
+    let value = "blue";
+    const set = v => {
+      value = NOTE_COLORS.some(c => c[0] === v) ? v : "blue";
+      el.querySelectorAll("button").forEach(b => b.setAttribute("aria-checked", String(b.dataset.c === value)));
+    };
+    NOTE_COLORS.forEach(([id, hex]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.c = id; b.style.background = hex;
+      b.setAttribute("role", "radio"); b.setAttribute("aria-label", id);
+      b.addEventListener("click", () => { set(id); if (onPick) onPick(id); });
+      el.appendChild(b);
+    });
+    set("blue");
+    return { get: () => value, set };
+  }
+
   // Text to show for note k on date d: on a note's expiry date, its expiry text.
   function textOn(k, d) {
     const n = getNote(k);
@@ -530,10 +587,10 @@
     return n.expiry ? `${n.text} (expires ${fmt(n.expiry.date)})` : n.text;
   }
   // Build what gets stored: a string, a repeating series, or a one-off with an expiry date.
-  function buildNote(text, freq, until, expDate, expText, prev) {
-    if (freq !== "none") return { text, freq, until, done: (prev && prev.done) || {} };
-    if (expDate) return { text, freq: "none", until: null, expiry: { date: expDate, text: expText } };
-    return text;
+  function buildNote(text, freq, until, expDate, expText, prev, color) {
+    if (freq !== "none") return { text, freq, until, color, done: (prev && prev.done) || {} };
+    if (expDate) return { text, freq: "none", until: null, color, expiry: { date: expDate, text: expText } };
+    return { text, freq: "none", until: null, color };
   }
   function checkExpiry(start, expDate) {
     if (expDate && expDate <= start) return `The expiry date has to be after ${fmt(start)}.`;
@@ -589,7 +646,7 @@
         const dayNotes = notesOn(d);
         const hasNote = dayNotes.length > 0;
         const allDone = hasNote && dayNotes.every(k => getNote(k).freq !== "none" && isDone(k, d));
-        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? `<span class="tag note${allDone ? " done" : ""}" title="${allDone ? "Completed" : "Has a note"}">${allDone ? "✓" : "✎"}</span>` : ""}</span>`;
+        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? (allDone ? `<span class="tag note done" title="Completed">✓</span>` : [...new Set(dayNotes.map(noteColor))].slice(0, 3).map(c => `<span class="tag note" style="background:${c}" title="Has a note">✎</span>`).join("")) : ""}</span>`;
         b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}${hasNote ? ", has a note" : ""}`);
         b.addEventListener("click", () => {
           selected = d;
@@ -599,6 +656,50 @@
         grid.appendChild(b);
       }
     }
+    renderIndex();
+  }
+
+  // Right-hand column: every date in the shown month that has something, grouped by category.
+  function renderIndex() {
+    const y = view.getFullYear(), m = view.getMonth();
+    document.getElementById("index-sub").textContent = `Everything in ${MONTHS[m]} ${y}`;
+    const cats = [
+      { title: "My notes", color: "var(--accent)", items: [] },
+      { title: "US holidays", color: "var(--us)", items: [] },
+      { title: "Turkey holidays", color: "var(--tr)", items: [] },
+      { title: "UK bank holidays", color: "var(--uk)", items: [] },
+      { title: "Special days", color: "var(--obs)", items: [] },
+    ];
+    const days = new Date(y, m + 1, 0).getDate();
+    for (let day = 1; day <= days; day++) {
+      const d = new Date(y, m, day);
+      notesOn(d).forEach(k => cats[0].items.push({ d, text: textOn(k, d), color: noteColor(k) }));
+      holidaysOn(d).forEach(h => {
+        const c = h.obs ? cats[4] : cats[{ us: 1, tr: 2, uk: 3 }[h.country]];
+        c.items.push({ d, text: h.obs && h.country !== "us" ? `${h.name} (${h.country === "tr" ? "TR" : "US & TR"})` : h.name, color: c.color });
+      });
+    }
+    const body = document.getElementById("index-body");
+    body.textContent = "";
+    const filled = cats.filter(c => c.items.length);
+    if (!filled.length) { body.innerHTML = `<p class="plain">Nothing on the calendar this month.</p>`; return; }
+    filled.forEach(c => {
+      const sec = document.createElement("div");
+      sec.className = "cat";
+      sec.innerHTML = `<h3><i class="dot" style="background:${c.color}"></i></h3><ul></ul>`;
+      sec.querySelector("h3").append(`${c.title} · ${c.items.length}`);
+      c.items.forEach(it => {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.innerHTML = `<i class="dot" style="background:${it.color}"></i><span class="when"></span><span class="what"></span>`;
+        b.querySelector(".when").textContent = `${MONTHS[it.d.getMonth()].slice(0, 3)} ${it.d.getDate()}`;
+        b.querySelector(".what").textContent = it.text;
+        b.addEventListener("click", () => { selected = it.d; renderCalendar(); renderDetail(); renderNotes(); });
+        li.appendChild(b);
+        sec.querySelector("ul").appendChild(li);
+      });
+      body.appendChild(sec);
+    });
   }
 
   function renderDetail() {
@@ -629,7 +730,7 @@
         <dt>ISO week</dt><dd>${isoWeek(d)}</dd>
         <dt>Quarter</dt><dd>Q${Math.floor(d.getMonth() / 3) + 1}</dd>
         <dt>From today</dt><dd>${relative(rel)}</dd>
-        ${myNotes.length ? `<dt>My notes</dt><dd class="my-notes">${myNotes.map(() => `<span class="mn"><span class="txt"></span></span>`).join("")}</dd>` : ""}
+        ${myNotes.length ? `<dt>My notes</dt><dd class="my-notes">${myNotes.map(k => `<span class="mn"><i class="dot" style="background:${noteColor(k)}"></i><span class="txt"></span></span>`).join("")}</dd>` : ""}
         ${nh ? `<dt>Next public holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
       </dl>`;
     detail.innerHTML = html;
@@ -673,6 +774,7 @@
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
   function defaultUntil(k) { const d = parseIso(k); return iso(new Date(d.getFullYear(), d.getMonth() + 3, d.getDate())); }
+  const noteColorPick = makeSwatches(document.getElementById("note-color"));
   const noteExpiry = document.getElementById("note-expiry");
   const noteExpDate = document.getElementById("note-exp-date");
   const noteExpText = document.getElementById("note-exp-text");
@@ -699,7 +801,8 @@
     notePick.hidden = on.length === 0;
     on.forEach(k => {
       const b = document.createElement("button");
-      b.textContent = textOn(k, selected).split("\n")[0];
+      b.innerHTML = `<i class="dot" style="background:${noteColor(k)}"></i> `;
+      b.append(textOn(k, selected).split("\n")[0]);
       b.setAttribute("aria-pressed", String(k === editingKey));
       b.addEventListener("click", () => { editingKey = k; renderNotes(); });
       notePick.appendChild(b);
@@ -723,6 +826,7 @@
     noteUntil.value = n && n.until ? n.until : "";
     noteExpDate.value = n && n.expiry ? n.expiry.date : "";
     noteExpText.value = n && n.expiry ? n.expiry.text : "";
+    noteColorPick.set(n ? n.color : "blue");
     syncRepeatUI();
     noteRemove.disabled = !n;
     statusField.hidden = !(n && n.freq !== "none");
@@ -740,10 +844,10 @@
       const note = getNote(k);
       const li = document.createElement("li");
       const b = document.createElement("button");
-      b.innerHTML = `<span class="when"></span><span class="what"></span>`;
+      b.innerHTML = `<span class="when"></span><span class="what"><i class="dot" style="background:${noteColor(k)}"></i> </span>`;
       b.querySelector(".when").textContent = fmt(k);
       const what = b.querySelector(".what");
-      what.textContent = note.text;
+      what.append(note.text);
       if (note.freq !== "none" || note.expiry) {
         const r = document.createElement("span");
         r.className = "rep";
@@ -776,7 +880,7 @@
     if (!text) delete notes[editingKey];
     else {
       const prev = getNote(editingKey);
-      notes[editingKey] = buildNote(text, freq, until, noteExpDate.value, noteExpText.value.trim(), prev);
+      notes[editingKey] = buildNote(text, freq, until, noteExpDate.value, noteExpText.value.trim(), prev, noteColorPick.get());
     }
     const ok = storeNotes();
     if (ok) editingKey = newKey(selected); // clear the editor for a fresh note on the same date
@@ -829,10 +933,12 @@
     qUntil.value = n && n.until ? n.until : "";
     qExpDate.value = n && n.expiry ? n.expiry.date : "";
     qExpText.value = n && n.expiry ? n.expiry.text : "";
+    qColorPick.set(n ? n.color : "blue");
     syncQuickRepeat();
     qRemove.disabled = !n;
     qRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
   }
+  const qColorPick = makeSwatches(document.getElementById("q-color"));
   const qExpiry = document.getElementById("q-expiry");
   const qExpDate = document.getElementById("q-exp-date");
   const qExpText = document.getElementById("q-exp-text");
@@ -878,7 +984,7 @@
     if (expErr) { qStatus.textContent = expErr; return; }
     const prev = getNote(k);
     const expDate = qExpDate.value;
-    notes[k] = buildNote(text, freq, until, expDate, qExpText.value.trim(), prev);
+    notes[k] = buildNote(text, freq, until, expDate, qExpText.value.trim(), prev, qColorPick.get());
     const ok = storeNotes();
     qKey = ok ? null : k; // clear the form for a fresh note on the same date
     refreshAll();
