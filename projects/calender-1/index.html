@@ -164,6 +164,13 @@
     border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
   }
   .quick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .expiry { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .75rem; }
+  .expiry .field { display: grid; gap: .25rem; min-width: 0; }
+  .expiry input {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
+  }
+  .expiry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .series-info { margin: 0; font-size: .85rem; color: var(--muted); }
   .note-list .rep { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
 </style>
@@ -226,6 +233,16 @@
             <input type="date" id="note-until">
           </div>
         </div>
+        <div class="expiry" id="note-expiry">
+          <div class="field">
+            <label for="note-exp-date">Expiry date (optional)</label>
+            <input type="date" id="note-exp-date">
+          </div>
+          <div class="field">
+            <label for="note-exp-text">Note for that date</label>
+            <input type="text" id="note-exp-text" placeholder="e.g. Deadline">
+          </div>
+        </div>
         <div class="note-actions">
           <button class="save" id="note-save">Save note</button>
           <button class="remove" id="note-remove">Remove note</button>
@@ -261,6 +278,16 @@
           <div class="field" id="q-until-field" hidden>
             <label for="q-until">Until</label>
             <input type="date" id="q-until">
+          </div>
+        </div>
+        <div class="expiry" id="q-expiry">
+          <div class="field">
+            <label for="q-exp-date">Expiry date (optional)</label>
+            <input type="date" id="q-exp-date">
+          </div>
+          <div class="field">
+            <label for="q-exp-text">Note for that date</label>
+            <input type="text" id="q-exp-text" placeholder="e.g. Deadline">
           </div>
         </div>
         <div class="note-actions">
@@ -469,6 +496,7 @@
     const start = parseIso(k);
     const diff = daysBetween(start, d);
     if (diff === 0) return true;
+    if (n.expiry && n.expiry.date === iso(d)) return true;
     if (n.freq === "none" || diff < 0 || !n.until || daysBetween(d, parseIso(n.until)) < 0) return false;
     switch (n.freq) {
       case "daily": return true;
@@ -492,6 +520,24 @@
     if (done) n.done[iso(d)] = true; else delete n.done[iso(d)];
     notes[k] = n;
     storeNotes();
+  }
+  // Text to show for note k on date d: on a note's expiry date, its expiry text.
+  function textOn(k, d) {
+    const n = getNote(k);
+    if (n.expiry && n.expiry.date === iso(d) && k.slice(0, 10) !== iso(d)) {
+      return `⏳ ${n.expiry.text || "Expires"} (expiry of "${n.text}")`;
+    }
+    return n.expiry ? `${n.text} (expires ${fmt(n.expiry.date)})` : n.text;
+  }
+  // Build what gets stored: a string, a repeating series, or a one-off with an expiry date.
+  function buildNote(text, freq, until, expDate, expText, prev) {
+    if (freq !== "none") return { text, freq, until, done: (prev && prev.done) || {} };
+    if (expDate) return { text, freq: "none", until: null, expiry: { date: expDate, text: expText } };
+    return text;
+  }
+  function checkExpiry(start, expDate) {
+    if (expDate && expDate <= start) return `The expiry date has to be after ${fmt(start)}.`;
+    return "";
   }
   function newKey(d) {
     const base = iso(d);
@@ -589,7 +635,7 @@
     detail.innerHTML = html;
     detail.querySelectorAll(".my-notes .mn").forEach((el, i) => {
       const k = myNotes[i], n = getNote(k);
-      el.querySelector(".txt").textContent = n.text;
+      el.querySelector(".txt").textContent = textOn(k, d);
       if (n.freq === "none") return;
       const done = isDone(k, d);
       el.classList.toggle("done", done);
@@ -627,7 +673,12 @@
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
   function defaultUntil(k) { const d = parseIso(k); return iso(new Date(d.getFullYear(), d.getMonth() + 3, d.getDate())); }
+  const noteExpiry = document.getElementById("note-expiry");
+  const noteExpDate = document.getElementById("note-exp-date");
+  const noteExpText = document.getElementById("note-exp-text");
   function syncRepeatUI() {
+    noteExpiry.hidden = noteFreq.value !== "none";
+    noteExpDate.min = editingKey.slice(0, 10);
     untilField.hidden = noteFreq.value === "none";
     if (!untilField.hidden && !noteUntil.value) noteUntil.value = defaultUntil(editingKey);
     noteUntil.min = editingKey.slice(0, 10);
@@ -648,7 +699,7 @@
     notePick.hidden = on.length === 0;
     on.forEach(k => {
       const b = document.createElement("button");
-      b.textContent = getNote(k).text.split("\n")[0];
+      b.textContent = textOn(k, selected).split("\n")[0];
       b.setAttribute("aria-pressed", String(k === editingKey));
       b.addEventListener("click", () => { editingKey = k; renderNotes(); });
       notePick.appendChild(b);
@@ -663,11 +714,15 @@
     noteLabel.textContent = `Note for ${MONTHS[selected.getMonth()]} ${selected.getDate()}, ${selected.getFullYear()}`;
     if (n && editingKey.slice(0, 10) !== own) {
       seriesInfo.hidden = false;
-      seriesInfo.textContent = `This is a repeating note that started on ${fmt(editingKey)}. Changes here apply to the whole series.`;
+      seriesInfo.textContent = n.freq === "none"
+        ? `This is the expiry date of a note from ${fmt(editingKey)}. Changes here apply to that note, and removing it clears both dates.`
+        : `This is a repeating note that started on ${fmt(editingKey)}. Changes here apply to the whole series.`;
     } else seriesInfo.hidden = true;
     noteText.value = n ? n.text : "";
     noteFreq.value = n ? n.freq : "none";
     noteUntil.value = n && n.until ? n.until : "";
+    noteExpDate.value = n && n.expiry ? n.expiry.date : "";
+    noteExpText.value = n && n.expiry ? n.expiry.text : "";
     syncRepeatUI();
     noteRemove.disabled = !n;
     statusField.hidden = !(n && n.freq !== "none");
@@ -689,10 +744,12 @@
       b.querySelector(".when").textContent = fmt(k);
       const what = b.querySelector(".what");
       what.textContent = note.text;
-      if (note.freq !== "none") {
+      if (note.freq !== "none" || note.expiry) {
         const r = document.createElement("span");
         r.className = "rep";
-        r.textContent = `↻ ${FREQ_LABEL[note.freq]} until ${fmt(note.until)}`;
+        r.textContent = note.expiry
+          ? `⏳ Expires ${fmt(note.expiry.date)}${note.expiry.text ? ": " + note.expiry.text : ""}`
+          : `↻ ${FREQ_LABEL[note.freq]} until ${fmt(note.until)}`;
         what.appendChild(r);
       }
       b.addEventListener("click", () => {
@@ -714,10 +771,12 @@
       if (!until) { noteStatus.textContent = "Pick an end date for the repeat."; return; }
       if (until < editingKey.slice(0, 10)) { noteStatus.textContent = `The end date has to be on or after ${fmt(editingKey)}.`; return; }
     }
+    const expErr = text && freq === "none" ? checkExpiry(editingKey.slice(0, 10), noteExpDate.value) : "";
+    if (expErr) { noteStatus.textContent = expErr; return; }
     if (!text) delete notes[editingKey];
     else {
       const prev = getNote(editingKey);
-      notes[editingKey] = freq === "none" ? text : { text, freq, until, done: (prev && prev.done) || {} };
+      notes[editingKey] = buildNote(text, freq, until, noteExpDate.value, noteExpText.value.trim(), prev);
     }
     const ok = storeNotes();
     renderCalendar(); renderDetail();
@@ -767,13 +826,20 @@
     qText.value = n ? n.text : "";
     qFreq.value = n ? n.freq : "none";
     qUntil.value = n && n.until ? n.until : "";
+    qExpDate.value = n && n.expiry ? n.expiry.date : "";
+    qExpText.value = n && n.expiry ? n.expiry.text : "";
     syncQuickRepeat();
     qRemove.disabled = !n;
     qRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
   }
+  const qExpiry = document.getElementById("q-expiry");
+  const qExpDate = document.getElementById("q-exp-date");
+  const qExpText = document.getElementById("q-exp-text");
   function syncQuickRepeat() {
     qUntilField.hidden = qFreq.value === "none";
+    qExpiry.hidden = qFreq.value !== "none";
     const start = qKey ? qKey.slice(0, 10) : iso(qDate());
+    qExpDate.min = start;
     qUntil.min = start;
     if (!qUntilField.hidden && !qUntil.value) qUntil.value = defaultUntil(start);
   }
@@ -807,14 +873,16 @@
       if (!until) { qStatus.textContent = "Pick an end date for the repeat."; return; }
       if (until < start) { qStatus.textContent = `The end date has to be on or after ${fmt(start)}.`; return; }
     }
+    const expErr = freq === "none" ? checkExpiry(start, qExpDate.value) : "";
+    if (expErr) { qStatus.textContent = expErr; return; }
     const prev = getNote(k);
-    notes[k] = freq === "none" ? text : { text, freq, until, done: (prev && prev.done) || {} };
+    notes[k] = buildNote(text, freq, until, qExpDate.value, qExpText.value.trim(), prev);
     const ok = storeNotes();
     qKey = k;
     refreshAll();
     loadQuick(k);
     qStatus.textContent = !ok ? "Couldn't save: this browser is blocking storage."
-      : freq === "none" ? `Saved for ${fmt(start)}.` : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} from ${fmt(start)} until ${fmt(until)}.`;
+      : freq === "none" ? `Saved for ${fmt(start)}${qExpDate.value ? `, expiring ${fmt(qExpDate.value)}` : ""}.` : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} from ${fmt(start)} until ${fmt(until)}.`;
   });
   qRemove.addEventListener("click", () => {
     if (!qKey) return;
