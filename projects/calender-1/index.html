@@ -295,6 +295,9 @@
     <div class="page-tools">
       <button id="btn-lock" type="button">🔒 Lock</button>
       <button id="btn-pin" type="button">Change PIN</button>
+      <button id="btn-export" type="button" title="Save all notes to a file">⬇ Export notes</button>
+      <button id="btn-import" type="button" title="Load notes from an exported file">⬆ Import notes</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
     </div>
   </div>
   <h1>Calender 1</h1>
@@ -1405,6 +1408,38 @@
   });
   renderQuick();
   loadQuick(null);
+
+  // Export / Import: move notes between devices as a JSON file.
+  document.getElementById("btn-export").addEventListener("click", () => {
+    const data = { app: "calender-1", version: 1, exported: new Date().toISOString(), notes };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `calender-1-notes-${iso(new Date())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  const importFile = document.getElementById("import-file");
+  document.getElementById("btn-import").addEventListener("click", () => importFile.click());
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files[0];
+    importFile.value = "";
+    if (!file) return;
+    let incoming;
+    try {
+      const data = JSON.parse(await file.text());
+      incoming = data && data.notes && typeof data.notes === "object" ? data.notes : null;
+    } catch (e) { incoming = null; }
+    if (!incoming) { alert("That file doesn't look like a Calender 1 notes export."); return; }
+    const keys = Object.keys(incoming).filter(k => /^\d{4}-\d{2}-\d{2}(~\d+)?$/.test(k));
+    const clashes = keys.filter(k => notes[k] && JSON.stringify(notes[k]) !== JSON.stringify(incoming[k])).length;
+    const msg = `Import ${keys.length} note${keys.length === 1 ? "" : "s"}?` + (clashes ? `\n${clashes} of them already exist here with different content and will be replaced by the file's version.` : "");
+    if (!confirm(msg)) return;
+    keys.forEach(k => { notes[k] = incoming[k]; });
+    const ok = storeNotes();
+    renderCalendar(); renderDetail(); renderNotes();
+    alert(ok ? `Imported ${keys.length} note${keys.length === 1 ? "" : "s"}.` : "Couldn't save: this browser is blocking storage.");
+  });
 
   document.getElementById("prev").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); renderCalendar(); });
   document.getElementById("next").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); renderCalendar(); });
