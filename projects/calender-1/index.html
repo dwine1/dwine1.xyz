@@ -119,6 +119,7 @@
   .detail { display: grid; gap: 1rem; }
   .detail .kicker { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
   .detail h2 { font-family: var(--display); font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.1; margin: 0; }
+  .numeric-date { margin: -.6rem 0 0; font-family: var(--mono); font-size: 1rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .holiday { border-left: 4px solid var(--line); padding: .5rem .75rem; border-radius: 4px; display: grid; gap: .25rem; }
   .holiday.us { border-color: var(--us); background: var(--us-soft); }
   .holiday.tr { border-color: var(--tr); background: var(--tr-soft); }
@@ -739,7 +740,8 @@
     const myNotes = notesOn(d);
 
     let html = `<p class="kicker">${DAYS[d.getDay()]} · ${relative(rel)}</p>
-      <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>`;
+      <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>
+      <p class="numeric-date">${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}</p>`;
 
     if (hs.length) {
       const where = { us: "United States", tr: "Turkey", uk: "United Kingdom (England & Wales)", both: "United States & Turkey" };
