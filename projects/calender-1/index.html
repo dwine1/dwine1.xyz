@@ -198,6 +198,14 @@
     border: 1px solid var(--obs); background: var(--obs-soft); color: var(--fg);
   }
   .status-select.done { border-color: var(--tr); background: var(--tr-soft); }
+  .status-select.moved { border-color: var(--uk); background: var(--uk-soft); }
+  .status-ctrl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .status-ctrl input[type=date] {
+    font: inherit; font-size: .8rem; color: var(--fg); background: var(--bg); border: 1px solid var(--uk);
+    border-radius: 6px; padding: .15rem .4rem;
+  }
+  .status-ctrl .moved-lbl { font-size: .8rem; color: var(--muted); }
+  .facts .my-notes .mn.moved .txt { color: var(--muted); }
   .tag.note.done { background: var(--tr); }
   .note-pick { display: flex; flex-wrap: wrap; gap: .4rem; }
   .note-pick button {
@@ -309,11 +317,8 @@
         <div class="color-field"><span class="lbl" id="note-color-lbl">Color</span><div class="swatches" id="note-color" role="radiogroup" aria-labelledby="note-color-lbl"></div></div>
         <div class="repeat">
           <div class="field" id="status-field" hidden style="grid-column: 1 / -1">
-            <label for="note-status-select" id="status-label">Status</label>
-            <select id="note-status-select" class="status-select">
-              <option value="waiting">◷ Waiting</option>
-              <option value="done">✓ Completed</option>
-            </select>
+            <span class="lbl" id="status-label">Status</span>
+            <div id="status-ctrl"></div>
           </div>
           <div class="field">
             <label for="note-freq">Repeat</label>
@@ -654,6 +659,7 @@
     const diff = daysBetween(start, d);
     if (diff === 0) return true;
     if (n.expiry && n.expiry.date === iso(d)) return true;
+    if (n.moved && Object.values(n.moved).includes(iso(d))) return true;
     if (n.freq === "none" || diff < 0 || !n.until || daysBetween(d, parseIso(n.until)) < 0) return false;
     switch (n.freq) {
       case "daily": return true;
@@ -682,6 +688,56 @@
     notes[k] = n;
     storeNotes();
   }
+  // Per-occurrence status of a repeating note: waiting, done, or moved (note.moved maps original date -> new date).
+  const movedTo = (k, d) => { const n = getNote(k); return n && n.moved ? n.moved[iso(d)] || null : null; };
+  const movedFrom = (k, d) => { const n = getNote(k); if (!n || !n.moved) return null; const e = Object.entries(n.moved).find(([, to]) => to === iso(d)); return e ? e[0] : null; };
+  const statusOf = (k, d) => movedTo(k, d) ? "moved" : isDone(k, d) ? "done" : "waiting";
+  function setMoved(k, d, to) {
+    const n = getNote(k);
+    n.moved = n.moved || {};
+    if (to) { n.moved[iso(d)] = to; if (n.done) delete n.done[iso(d)]; } else delete n.moved[iso(d)];
+    notes[k] = n;
+    storeNotes();
+  }
+  // Waiting / Completed / Delayed-changed dropdown (plus a date box when delayed) for note k on date d.
+  function statusControl(k, d, after) {
+    const wrap = document.createElement("span");
+    wrap.className = "status-ctrl";
+    const sel = document.createElement("select");
+    const st = statusOf(k, d);
+    const from = movedFrom(k, d);
+    sel.className = "status-select" + (st === "waiting" ? "" : " " + st);
+    sel.setAttribute("aria-label", `Status of "${getNote(k).text}" on this date`);
+    sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>${from ? "" : `<option value="moved">↷ Delayed / changed</option>`}`;
+    sel.value = st;
+    wrap.appendChild(sel);
+    const date = document.createElement("input");
+    date.type = "date";
+    date.setAttribute("aria-label", "New date");
+    const lbl = document.createElement("span");
+    lbl.className = "moved-lbl";
+    lbl.textContent = "to";
+    if (st === "moved") { date.value = movedTo(k, d); wrap.append(lbl, date); }
+    sel.addEventListener("change", () => {
+      if (sel.value === "moved") {
+        sel.className = "status-select moved";
+        wrap.append(lbl, date);
+        date.focus();
+        try { date.showPicker(); } catch (e) {}
+        return;
+      }
+      if (movedTo(k, d)) setMoved(k, d, null);
+      setDone(k, d, sel.value === "done");
+      after(sel.value === "done" ? "Marked completed for this date." : "Marked waiting for this date.");
+    });
+    date.addEventListener("change", () => {
+      if (!date.value || date.value === iso(d)) return;
+      setMoved(k, d, date.value);
+      after(`Moved to ${fmt(date.value)}.`);
+    });
+    return wrap;
+  }
+
   // Note colors: each note picks one; it tints the note's tag on the calendar and its dot in lists.
   const NOTE_COLORS = [
     ["blue", "#2b6cd8"], ["red", "#d64545"], ["orange", "#e07b1a"], ["yellow", "#c99a00"],
@@ -709,6 +765,9 @@
   // Text to show for note k on date d: on a note's expiry date, its expiry text.
   function textOn(k, d) {
     const n = getNote(k);
+    if (n.moved && n.moved[iso(d)]) return `${n.text} (moved to ${fmt(n.moved[iso(d)])})`;
+    const mf = movedFrom(k, d);
+    if (mf) return `${n.text} (moved from ${fmt(mf)})`;
     if (n.expiry && n.expiry.date === iso(d) && k.slice(0, 10) !== iso(d)) {
       return `⏳ ${n.expiry.text || "Expires"} (expiry of "${n.text}")`;
     }
@@ -716,7 +775,7 @@
   }
   // Build what gets stored: a string, a repeating series, or a one-off with an expiry date.
   function buildNote(text, freq, until, expDate, expText, prev, color) {
-    if (freq !== "none") return { text, freq, until, color, done: (prev && prev.done) || {} };
+    if (freq !== "none") return { text, freq, until, color, done: (prev && prev.done) || {}, moved: (prev && prev.moved) || {} };
     if (expDate) return { text, freq: "none", until: null, color, expiry: { date: expDate, text: expText } };
     return { text, freq: "none", until: null, color };
   }
@@ -773,7 +832,7 @@
         if (hasObs) b.classList.add("obs");
         const dayNotes = notesOn(d);
         const hasNote = dayNotes.length > 0;
-        const allDone = hasNote && dayNotes.every(k => getNote(k).freq !== "none" && isDone(k, d));
+        const allDone = hasNote && dayNotes.every(k => getNote(k).freq !== "none" && statusOf(k, d) === "done");
         b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}${hasNote ? (allDone ? `<span class="tag note done" title="Completed">✓</span>` : [...new Set(dayNotes.map(noteColor))].slice(0, 3).map(c => `<span class="tag note" style="background:${c}" title="Has a note">✎</span>`).join("")) : ""}</span>`;
         b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}${hasNote ? ", has a note" : ""}`);
         b.addEventListener("click", () => {
@@ -796,7 +855,7 @@
       const start = parseIso(k);
       let d = daysBetween(start, t) > 0 ? t : start;
       for (let i = 0; i < 4000 && daysBetween(d, end) >= 0; i++) {
-        if (occursOn(k, n, d)) return { label: "Next", d };
+        if (occursOn(k, n, d) && !(n.moved && n.moved[iso(d)])) return { label: "Next", d };
         d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
       }
       return { label: "Ended", d: null };
@@ -829,7 +888,7 @@
       const items = [];
       notesOn(d).forEach(k => {
         const n = getNote(k);
-        const status = n.freq !== "none" ? (isDone(k, d) ? " · completed" : " · waiting") : "";
+        const status = n.freq !== "none" ? ({ done: " · completed", waiting: " · waiting", moved: " · delayed" })[statusOf(k, d)] : "";
         items.push({ color: noteColor(k), text: textOn(k, d), kind: "My note" + status });
       });
       holidaysOn(d).forEach(h => items.push({
@@ -963,15 +1022,10 @@
       const k = myNotes[i], n = getNote(k);
       el.querySelector(".txt").textContent = textOn(k, d);
       if (n.freq === "none") return;
-      const done = isDone(k, d);
-      el.classList.toggle("done", done);
-      const sel = document.createElement("select");
-      sel.className = "status-select" + (done ? " done" : "");
-      sel.setAttribute("aria-label", `Status of "${n.text}" on this date`);
-      sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>`;
-      sel.value = done ? "done" : "waiting";
-      sel.addEventListener("change", () => { setDone(k, d, sel.value === "done"); renderCalendar(); renderDetail(); renderNotes(); });
-      el.appendChild(sel);
+      const st = statusOf(k, d);
+      el.classList.toggle("done", st === "done");
+      el.classList.toggle("moved", st === "moved");
+      el.appendChild(statusControl(k, d, () => { renderCalendar(); renderDetail(); renderNotes(); }));
     });
   }
 
@@ -989,12 +1043,8 @@
   let editingKey = null;
   let editingDate = null;
   const statusField = document.getElementById("status-field");
-  const statusSelect = document.getElementById("note-status-select");
+  const statusCtrl = document.getElementById("status-ctrl");
   const statusLabel = document.getElementById("status-label");
-  statusSelect.addEventListener("change", () => {
-    setDone(editingKey, selected, statusSelect.value === "done");
-    renderCalendar(); renderDetail(); renderNotes(statusSelect.value === "done" ? "Marked completed for this date." : "Marked waiting for this date.");
-  });
   const notePick = document.getElementById("note-pick");
 
   const fmt = k => { const d = parseIso(k); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
@@ -1103,9 +1153,8 @@
     noteRemove.disabled = !n;
     statusField.hidden = !(n && n.freq !== "none");
     if (!statusField.hidden) {
-      const done = isDone(editingKey, selected);
-      statusSelect.value = done ? "done" : "waiting";
-      statusSelect.classList.toggle("done", done);
+      statusCtrl.textContent = "";
+      statusCtrl.appendChild(statusControl(editingKey, selected, msg => { renderCalendar(); renderDetail(); renderNotes(msg); }));
       statusLabel.textContent = `Status on ${MONTHS[selected.getMonth()].slice(0, 3)} ${selected.getDate()}`;
     }
     noteRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
