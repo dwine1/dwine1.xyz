@@ -157,6 +157,13 @@
     border-radius: 999px; padding: .3rem .75rem; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .note-pick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .quick .field { display: grid; gap: .25rem; min-width: 0; }
+  .quick-date { display: grid; grid-template-columns: 1fr 1.6fr 1.2fr; gap: .5rem; }
+  .quick select:not(.status-select) {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
+  }
+  .quick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .series-info { margin: 0; font-size: .85rem; color: var(--muted); }
   .note-list .rep { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
 </style>
@@ -225,6 +232,42 @@
           <span class="note-status" id="note-status" aria-live="polite"></span>
         </div>
         <ul class="note-list" id="note-list"></ul>
+      </section>
+
+      <section class="panel notes quick" aria-label="Quick add a note">
+        <h2>Quick add a note</h2>
+        <div class="quick-date">
+          <div class="field"><label for="q-day">Day</label><select id="q-day"></select></div>
+          <div class="field"><label for="q-month">Month</label><select id="q-month"></select></div>
+          <div class="field"><label for="q-year">Year</label><select id="q-year"></select></div>
+        </div>
+        <div class="field">
+          <label for="q-which">Note</label>
+          <select id="q-which"></select>
+        </div>
+        <textarea id="q-text" placeholder="Write your note"></textarea>
+        <div class="repeat">
+          <div class="field">
+            <label for="q-freq">Frequency</label>
+            <select id="q-freq">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div class="field" id="q-until-field" hidden>
+            <label for="q-until">Until</label>
+            <input type="date" id="q-until">
+          </div>
+        </div>
+        <div class="note-actions">
+          <button class="save" id="q-save">Save note</button>
+          <button class="remove" id="q-remove">Remove note</button>
+          <span class="note-status" id="q-status" aria-live="polite"></span>
+        </div>
       </section>
     </div>
   </div>
@@ -660,6 +703,7 @@
       li.appendChild(b);
       noteList.appendChild(li);
     });
+    if (typeof renderQuick === "function") renderQuick();
   }
 
   noteSave.addEventListener("click", () => {
@@ -689,6 +733,101 @@
     renderCalendar(); renderDetail();
     renderNotes(wasSeries ? "Repeating note removed from every date." : "Note removed.");
   });
+
+  // --- Quick add: pick day / month / year, frequency and end date -----------
+  const qDay = document.getElementById("q-day");
+  const qMonth = document.getElementById("q-month");
+  const qYear = document.getElementById("q-year");
+  const qWhich = document.getElementById("q-which");
+  const qText = document.getElementById("q-text");
+  const qFreq = document.getElementById("q-freq");
+  const qUntil = document.getElementById("q-until");
+  const qUntilField = document.getElementById("q-until-field");
+  const qSave = document.getElementById("q-save");
+  const qRemove = document.getElementById("q-remove");
+  const qStatus = document.getElementById("q-status");
+  let qKey = null; // key of the note loaded in this section, or null for a new note
+
+  MONTHS.forEach((m, i) => qMonth.add(new Option(m, i)));
+  for (let y = today.getFullYear() - 1; y <= today.getFullYear() + 5; y++) qYear.add(new Option(y, y));
+  qMonth.value = today.getMonth();
+  qYear.value = today.getFullYear();
+  function fillDays(keep) {
+    const max = new Date(+qYear.value, +qMonth.value + 1, 0).getDate();
+    qDay.textContent = "";
+    for (let d = 1; d <= max; d++) qDay.add(new Option(d, d));
+    qDay.value = Math.min(keep, max);
+  }
+  fillDays(today.getDate());
+  const qDate = () => new Date(+qYear.value, +qMonth.value, +qDay.value);
+
+  function loadQuick(k) {
+    qKey = k;
+    const n = k ? getNote(k) : null;
+    qText.value = n ? n.text : "";
+    qFreq.value = n ? n.freq : "none";
+    qUntil.value = n && n.until ? n.until : "";
+    syncQuickRepeat();
+    qRemove.disabled = !n;
+    qRemove.textContent = n && n.freq !== "none" ? "Remove repeating note" : "Remove note";
+  }
+  function syncQuickRepeat() {
+    qUntilField.hidden = qFreq.value === "none";
+    const start = qKey ? qKey.slice(0, 10) : iso(qDate());
+    qUntil.min = start;
+    if (!qUntilField.hidden && !qUntil.value) qUntil.value = defaultUntil(start);
+  }
+  // Rebuild the "Note" picker for the chosen date: a new note, or one of the notes that start on it.
+  function renderQuick() {
+    const own = iso(qDate());
+    const here = Object.keys(notes).filter(k => k.slice(0, 10) === own).sort();
+    qWhich.textContent = "";
+    qWhich.add(new Option("+ New note", ""));
+    here.forEach(k => qWhich.add(new Option(getNote(k).text.split("\n")[0], k)));
+    if (qKey && !here.includes(qKey)) qKey = null;
+    qWhich.value = qKey || "";
+    qWhich.disabled = here.length === 0;
+    if (!qKey) { qRemove.disabled = true; qRemove.textContent = "Remove note"; }
+  }
+  function dateChanged() { qKey = null; qStatus.textContent = ""; renderQuick(); loadQuick(null); }
+  qDay.addEventListener("change", dateChanged);
+  qMonth.addEventListener("change", () => { fillDays(+qDay.value); dateChanged(); });
+  qYear.addEventListener("change", () => { fillDays(+qDay.value); dateChanged(); });
+  qWhich.addEventListener("change", () => { qStatus.textContent = ""; loadQuick(qWhich.value || null); });
+  qFreq.addEventListener("change", syncQuickRepeat);
+
+  function refreshAll() { renderCalendar(); renderDetail(); renderNotes(); }
+  qSave.addEventListener("click", () => {
+    const text = qText.value.trim();
+    const freq = qFreq.value, until = qUntil.value;
+    const k = qKey || newKey(qDate());
+    const start = k.slice(0, 10);
+    if (!text) { qStatus.textContent = "Write something first."; return; }
+    if (freq !== "none") {
+      if (!until) { qStatus.textContent = "Pick an end date for the repeat."; return; }
+      if (until < start) { qStatus.textContent = `The end date has to be on or after ${fmt(start)}.`; return; }
+    }
+    const prev = getNote(k);
+    notes[k] = freq === "none" ? text : { text, freq, until, done: (prev && prev.done) || {} };
+    const ok = storeNotes();
+    qKey = k;
+    refreshAll();
+    loadQuick(k);
+    qStatus.textContent = !ok ? "Couldn't save: this browser is blocking storage."
+      : freq === "none" ? `Saved for ${fmt(start)}.` : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} from ${fmt(start)} until ${fmt(until)}.`;
+  });
+  qRemove.addEventListener("click", () => {
+    if (!qKey) return;
+    const wasSeries = getNote(qKey).freq !== "none";
+    delete notes[qKey];
+    storeNotes();
+    qKey = null;
+    refreshAll();
+    loadQuick(null);
+    qStatus.textContent = wasSeries ? "Repeating note removed from every date." : "Note removed.";
+  });
+  renderQuick();
+  loadQuick(null);
 
   document.getElementById("prev").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); renderCalendar(); });
   document.getElementById("next").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); renderCalendar(); });
