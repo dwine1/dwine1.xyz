@@ -13,6 +13,7 @@
     --us: #b4232f; --us-soft: #fbe3e5;
     --tr: #0e7a5a; --tr-soft: #dcf3ea;
     --obs: #b45f06; --obs-soft: #fdf1e2;
+    --uk: #7a3fc0; --uk-soft: #efe5fb;
     --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
     --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -20,13 +21,13 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
-      --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214;
+      --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214; --uk: #c4a0f5; --uk-soft: #291d3d;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
-    --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214;
+    --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214; --uk: #c4a0f5; --uk-soft: #291d3d;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -72,9 +73,9 @@
   .day.weekend .n { color: var(--muted); }
   .day.us { background: var(--us-soft); }
   .day.tr { background: var(--tr-soft); }
-  .day.us.tr { background: linear-gradient(135deg, var(--us-soft) 50%, var(--tr-soft) 50%); }
-  .day.obs:not(.us):not(.tr):not(.selected) { border-style: dashed; border-color: var(--obs); }
-  .day.obs:not(.us):not(.tr) { background: var(--obs-soft); }
+  .day.uk { background: var(--uk-soft); }
+  .day.obs:not(.us):not(.tr):not(.uk):not(.selected) { border-style: dashed; border-color: var(--obs); }
+  .day.obs:not(.us):not(.tr):not(.uk) { background: var(--obs-soft); }
   .day.today .n { background: var(--accent); color: var(--surface); border-radius: 999px; padding: 0 .35rem; }
   .day.selected, .day.obs.selected { border: 2px solid var(--accent); }
   .n { font-weight: 700; font-size: .95rem; line-height: 1.4; }
@@ -83,6 +84,7 @@
   .tag.us { background: var(--us); }
   .tag.tr { background: var(--tr); }
   .tag.obs { background: var(--obs); }
+  .tag.uk { background: var(--uk); }
 
   .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; font-size: .85rem; color: var(--muted); }
   .legend span { display: inline-flex; align-items: center; gap: .4rem; }
@@ -94,6 +96,7 @@
   .holiday { border-left: 4px solid var(--line); padding: .5rem .75rem; border-radius: 4px; display: grid; gap: .25rem; }
   .holiday.us { border-color: var(--us); background: var(--us-soft); }
   .holiday.tr { border-color: var(--tr); background: var(--tr-soft); }
+  .holiday.uk { border-color: var(--uk); background: var(--uk-soft); }
   .holiday.obs { border-color: var(--obs); background: var(--obs-soft); border-left-style: dashed; }
   .holiday h3 { margin: 0; font-size: 1.05rem; }
   .holiday .country { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
@@ -123,6 +126,7 @@
       <div class="legend">
         <span><i class="sw" style="background:var(--us)"></i>US holiday</span>
         <span><i class="sw" style="background:var(--tr)"></i>Turkey holiday</span>
+        <span><i class="sw" style="background:var(--uk)"></i>UK bank holiday</span>
         <span><i class="sw" style="background:var(--obs)"></i>Special day (not a day off)</span>
         <span><i class="sw" style="background:var(--accent)"></i>Today</span>
       </div>
@@ -162,6 +166,35 @@
       [10, nthWeekday(y, 10, 4, 4), "Thanksgiving Day", "A day of giving thanks, traditionally with a turkey dinner with family. Fourth Thursday of November."],
       [11, 25, "Christmas Day", "Celebrates the birth of Jesus Christ. A federal holiday and the biggest gift-giving day of the year."],
     ].map(([m, d, name, text]) => ({ y, m, d, name, text, country: "us" }));
+  }
+
+  // England & Wales bank holidays. A holiday on a weekend moves to the next free weekday.
+  function ukHolidays(y) {
+    const [em, ed] = easter(y);
+    const list = [
+      [new Date(y, em, ed - 2), "Good Friday", "The Friday before Easter, marking the crucifixion of Jesus. A bank holiday across the UK."],
+      [new Date(y, em, ed + 1), "Easter Monday", "The day after Easter Sunday. A bank holiday in England, Wales and Northern Ireland."],
+      [new Date(y, 4, nthWeekday(y, 4, 1, 1)), "Early May bank holiday", "First Monday of May, the UK's May Day holiday. Maypoles and morris dancing in some villages."],
+      [new Date(y, 4, nthWeekday(y, 4, 1, -1)), "Spring bank holiday", "Last Monday of May, originally the Whit Monday holiday."],
+      [new Date(y, 7, nthWeekday(y, 7, 1, -1)), "Summer bank holiday", "Last Monday of August in England and Wales, the last long weekend of summer."],
+    ];
+    const taken = new Set(list.map(([d]) => key(d)));
+    const fixed = [
+      [0, 1, "New Year's Day", "The first day of the year, a bank holiday across the UK."],
+      [11, 25, "Christmas Day", "Celebrates the birth of Jesus: presents, crackers, turkey dinner and the King's speech at 3 p.m."],
+      [11, 26, "Boxing Day", "The day after Christmas, traditionally when servants and tradespeople received gifts (\"Christmas boxes\"). Now known for sport and sales."],
+    ];
+    fixed.forEach(([m, d, name, text]) => {
+      let dt = new Date(y, m, d);
+      if (dt.getDay() === 0 || dt.getDay() === 6) {
+        list.push([dt, name, text]);
+        do { dt = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + 1); }
+        while (dt.getDay() === 0 || dt.getDay() === 6 || taken.has(key(dt)));
+        list.push([dt, name + " (substitute day)", `${name} falls on a weekend this year, so the bank holiday moves to this weekday.`]);
+      } else list.push([dt, name, text]);
+      taken.add(key(dt));
+    });
+    return list.map(([dt, name, text]) => ({ y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate(), name, text, country: "uk" }));
   }
 
   // Religious holidays in Turkey follow the lunar Hijri calendar; dates below are the official first days per year.
@@ -236,7 +269,7 @@
   function holidaysFor(y) {
     if (!holidayCache[y]) {
       const map = {};
-      [...usHolidays(y), ...trHolidays(y), ...observances(y)].forEach(h => {
+      [...usHolidays(y), ...trHolidays(y), ...ukHolidays(y), ...observances(y)].forEach(h => {
         const k = key(new Date(h.y, h.m, h.d));
         (map[k] = map[k] || []).push(h);
       });
@@ -310,6 +343,10 @@
         if (sameDay(d, selected)) b.classList.add("selected");
         const countries = [...new Set(hs.filter(h => !h.obs).map(h => h.country))];
         countries.forEach(c => b.classList.add(c));
+        if (countries.length > 1) {
+          const step = 100 / countries.length;
+          b.style.background = `linear-gradient(135deg, ${countries.map((c, j) => `var(--${c}-soft) ${j * step}% ${(j + 1) * step}%`).join(", ")})`;
+        }
         const hasObs = hs.some(h => h.obs);
         if (hasObs) b.classList.add("obs");
         b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}</span>`;
@@ -336,9 +373,9 @@
       <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>`;
 
     if (hs.length) {
-      const where = { us: "United States", tr: "Turkey", both: "United States & Turkey" };
+      const where = { us: "United States", tr: "Turkey", uk: "United Kingdom (England & Wales)", both: "United States & Turkey" };
       html += hs.map(h => `<div class="holiday ${h.obs ? "obs" : h.country}">
-          <span class="country">${where[h.country]} · ${h.obs ? "special day" : "public holiday"}</span>
+          <span class="country">${where[h.country]} · ${h.obs ? "special day" : h.country === "uk" ? "bank holiday" : "public holiday"}</span>
           <h3>${h.name}</h3><p>${h.text}</p></div>`).join("");
     } else {
       const weekend = d.getDay() === 0 || d.getDay() === 6;
