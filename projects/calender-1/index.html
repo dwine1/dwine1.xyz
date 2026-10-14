@@ -727,7 +727,7 @@
     const from = movedFrom(k, d);
     sel.className = "status-select" + (st === "waiting" ? "" : " " + st);
     sel.setAttribute("aria-label", `Status of "${getNote(k).text}" on this date`);
-    sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>${from ? "" : `<option value="moved">↷ Delayed / changed</option>`}<option value="cancelled">✕ Cancelled</option>`;
+    sel.innerHTML = `<option value="waiting">◷ Waiting</option><option value="done">✓ Completed</option>${from ? "" : `<option value="moved">↷ Delayed / changed</option>`}<option value="cancelled">✕ Cancelled</option><option value="keep">↺ Keep the same</option>`;
     sel.value = st;
     wrap.appendChild(sel);
     const date = document.createElement("input");
@@ -754,6 +754,15 @@
         wrap.append(lbl, date, keep);
         date.focus();
         try { date.showPicker(); } catch (e) {}
+        return;
+      }
+      if (sel.value === "keep") {
+        // Back to the original date as Waiting: undo a delay (from either end) and any cancel.
+        if (movedTo(k, d)) setMoved(k, d, null);
+        if (from) setMoved(k, parseIso(from), null);
+        setCancelled(k, d, false);
+        setDone(k, d, false);
+        after(from ? `Moved back to ${fmt(from)}.` : "Kept on its original date.");
         return;
       }
       if (movedTo(k, d)) setMoved(k, d, null);
