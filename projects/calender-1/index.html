@@ -156,7 +156,7 @@
   .note-actions .remove:hover { border-color: var(--us); color: var(--us); }
   .note-actions button:disabled { opacity: .45; cursor: default; }
   .note-status { font-size: .85rem; color: var(--muted); }
-  .note-list { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
+  .note-list { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain; }
   .note-list button {
     width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--line);
     padding: .55rem .25rem; cursor: pointer; display: grid; grid-template-columns: 6.5rem 1fr; gap: .75rem;
@@ -165,8 +165,7 @@
   .note-list .when { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
   .note-list .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tag.note { background: var(--accent); }
-  .repeat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem .75rem; }
-  @media (max-width: 30rem) { .repeat { grid-template-columns: 1fr 1fr; } }
+  .repeat { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: .5rem .75rem; }
   .repeat .field { display: grid; gap: .25rem; min-width: 0; }
   .repeat select, .repeat input {
     font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
@@ -958,6 +957,9 @@
       li.appendChild(b);
       noteList.appendChild(li);
     });
+    // Show three notes at a time; the rest scroll.
+    const rows = [...noteList.children];
+    noteList.style.maxHeight = rows.length > 3 ? rows.slice(0, 3).reduce((h, li) => h + li.offsetHeight, 0) + "px" : "";
     if (typeof renderQuick === "function") renderQuick();
   }
 
