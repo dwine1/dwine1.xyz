@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starter page · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  :root {
+    --bg: #eef1f4; --fg: #16202b; --muted: #5b6876; --line: #d3dae2; --accent: #2b4fd8;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; color-scheme: dark; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 44rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 2rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  .back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; text-wrap: balance; }
+  p { margin: 0; color: var(--muted); max-width: 36rem; }
+  main { display: grid; gap: 1rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="../../index.html">← All projects</a>
+    <h1>Starter page</h1>
+    <main>
+      <p>Copy this folder to start a new project. Rename it, change the title, and build the project inside this area.</p>
+    </main>
+  </div>
+</body>
+</html>
