@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calender 1 · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: back link and title on top, then two columns: the month grid on the left, the selected date's details on the right. Stacks on narrow screens. */
+  :root {
+    --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
+    --accent: #2b4fd8; --accent-soft: #e2e8fd;
+    --us: #b4232f; --us-soft: #fbe3e5;
+    --tr: #0e7a5a; --tr-soft: #dcf3ea;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+      --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+    --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 68rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 1.5rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; justify-self: start; }
+  .back:hover { text-decoration: underline; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; }
+
+  .cal-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
+  .cal-head h2 { font-family: var(--display); font-weight: 500; font-size: 1.5rem; margin: 0; }
+  .nav { display: flex; gap: .4rem; }
+  .nav button {
+    font: inherit; font-size: .85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: .35rem .65rem; cursor: pointer; min-height: 2.25rem;
+  }
+  .nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: 2.2rem repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .dow, .wk { font-family: var(--mono); font-size: .7rem; color: var(--muted); text-align: center; text-transform: uppercase; letter-spacing: .05em; }
+  .dow { padding-bottom: .25rem; }
+  .wk { display: flex; align-items: center; justify-content: center; }
+  .day {
+    position: relative; aspect-ratio: 1 / 1; min-height: 2.6rem;
+    font: inherit; font-variant-numeric: tabular-nums; color: var(--fg);
+    background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; padding: .3rem .4rem;
+    text-align: left;
+  }
+  .day:hover { border-color: var(--accent); }
+  .day.out { color: var(--muted); opacity: .5; }
+  .day.weekend .n { color: var(--muted); }
+  .day.us { background: var(--us-soft); }
+  .day.tr { background: var(--tr-soft); }
+  .day.us.tr { background: linear-gradient(135deg, var(--us-soft) 50%, var(--tr-soft) 50%); }
+  .day.today .n { background: var(--accent); color: var(--surface); border-radius: 999px; padding: 0 .35rem; }
+  .day.selected { border: 2px solid var(--accent); }
+  .n { font-weight: 700; font-size: .95rem; line-height: 1.4; }
+  .tags { display: flex; gap: 3px; }
+  .tag { font-family: var(--mono); font-size: .6rem; font-weight: 500; line-height: 1; padding: 2px 3px; border-radius: 3px; color: var(--surface); }
+  .tag.us { background: var(--us); }
+  .tag.tr { background: var(--tr); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; font-size: .85rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .sw { width: .9rem; height: .9rem; border-radius: 3px; display: inline-block; }
+
+  .detail { display: grid; gap: 1rem; }
+  .detail .kicker { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  .detail h2 { font-family: var(--display); font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.1; margin: 0; }
+  .holiday { border-left: 4px solid var(--line); padding: .5rem .75rem; border-radius: 4px; display: grid; gap: .25rem; }
+  .holiday.us { border-color: var(--us); background: var(--us-soft); }
+  .holiday.tr { border-color: var(--tr); background: var(--tr-soft); }
+  .holiday h3 { margin: 0; font-size: 1.05rem; }
+  .holiday .country { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .holiday p { margin: 0; }
+  .facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .4rem 1rem; font-size: .95rem; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .plain { margin: 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← All projects</a>
+  <h1>Calender 1</h1>
+
+  <div class="layout">
+    <section class="panel" aria-label="Calendar">
+      <div class="cal-head">
+        <h2 id="month-label"></h2>
+        <div class="nav">
+          <button id="prev" aria-label="Previous month">←</button>
+          <button id="today">Today</button>
+          <button id="next" aria-label="Next month">→</button>
+        </div>
+      </div>
+      <div class="grid" id="grid" role="grid"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--us)"></i>US holiday</span>
+        <span><i class="sw" style="background:var(--tr)"></i>Turkey holiday</span>
+        <span><i class="sw" style="background:var(--accent)"></i>Today</span>
+      </div>
+    </section>
+
+    <section class="panel detail" id="detail" aria-live="polite"></section>
+  </div>
+</div>
+
+<script>
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+  // --- Holidays -------------------------------------------------------------
+  // nthWeekday(y, m, weekday, n): n-th weekday of month m (0-based); n = -1 means last.
+  function nthWeekday(y, m, wd, n) {
+    if (n > 0) {
+      const first = new Date(y, m, 1).getDay();
+      return 1 + ((wd - first + 7) % 7) + (n - 1) * 7;
+    }
+    const lastDate = new Date(y, m + 1, 0).getDate();
+    const lastWd = new Date(y, m, lastDate).getDay();
+    return lastDate - ((lastWd - wd + 7) % 7);
+  }
+
+  function usHolidays(y) {
+    return [
+      [0, 1, "New Year's Day", "The first day of the year in the Gregorian calendar, a federal holiday across the United States."],
+      [0, nthWeekday(y, 0, 1, 3), "Martin Luther King Jr. Day", "Honors civil rights leader Martin Luther King Jr. Held on the third Monday of January, close to his birthday (January 15)."],
+      [1, nthWeekday(y, 1, 1, 3), "Washington's Birthday (Presidents' Day)", "Officially honors George Washington, the first U.S. president; widely celebrated as a day for all presidents. Third Monday of February."],
+      [4, nthWeekday(y, 4, 1, -1), "Memorial Day", "Remembers the U.S. military personnel who died in service. Last Monday of May, also seen as the unofficial start of summer."],
+      [5, 19, "Juneteenth", "Marks June 19, 1865, when enslaved people in Galveston, Texas learned they were free. Federal holiday since 2021."],
+      [6, 4, "Independence Day", "Celebrates the adoption of the Declaration of Independence on July 4, 1776. Fireworks, parades and barbecues."],
+      [8, nthWeekday(y, 8, 1, 1), "Labor Day", "Honors the American labor movement and workers. First Monday of September, the unofficial end of summer."],
+      [9, nthWeekday(y, 9, 1, 2), "Columbus Day / Indigenous Peoples' Day", "Federal holiday on the second Monday of October. Originally commemorating Columbus's 1492 landing; many places now celebrate Indigenous Peoples' Day instead."],
+      [10, 11, "Veterans Day", "Honors everyone who has served in the U.S. armed forces. Falls on November 11, the anniversary of the end of World War I."],
+      [10, nthWeekday(y, 10, 4, 4), "Thanksgiving Day", "A day of giving thanks, traditionally with a turkey dinner with family. Fourth Thursday of November."],
+      [11, 25, "Christmas Day", "Celebrates the birth of Jesus Christ. A federal holiday and the biggest gift-giving day of the year."],
+    ].map(([m, d, name, text]) => ({ y, m, d, name, text, country: "us" }));
+  }
+
+  // Religious holidays in Turkey follow the lunar Hijri calendar; dates below are the official first days per year.
+  const RAMAZAN = { 2024: [3, 10], 2025: [2, 30], 2026: [2, 20], 2027: [2, 9], 2028: [1, 26], 2029: [1, 14], 2030: [1, 4] };
+  const KURBAN  = { 2024: [5, 16], 2025: [5, 6],  2026: [4, 27], 2027: [4, 16], 2028: [4, 5],  2029: [3, 24], 2030: [3, 13] };
+
+  function trHolidays(y) {
+    const list = [
+      [0, 1, "Yılbaşı (New Year's Day)", "The first day of the year, a public holiday in Turkey."],
+      [3, 23, "Ulusal Egemenlik ve Çocuk Bayramı", "National Sovereignty and Children's Day. Marks the opening of the Grand National Assembly in 1920; Atatürk dedicated the day to children."],
+      [4, 1, "Emek ve Dayanışma Günü", "Labour and Solidarity Day, Turkey's May Day holiday for workers."],
+      [4, 19, "Atatürk'ü Anma, Gençlik ve Spor Bayramı", "Commemoration of Atatürk, Youth and Sports Day. Marks May 19, 1919, when Atatürk landed in Samsun to start the War of Independence."],
+      [6, 15, "Demokrasi ve Milli Birlik Günü", "Democracy and National Unity Day, remembering those who resisted the coup attempt of July 15, 2016."],
+      [7, 30, "Zafer Bayramı", "Victory Day. Celebrates the decisive victory at Dumlupınar in 1922 during the War of Independence."],
+      [9, 28, "Cumhuriyet Bayramı Arifesi", "Republic Day eve. A half-day holiday from the afternoon."],
+      [9, 29, "Cumhuriyet Bayramı", "Republic Day. Celebrates the proclamation of the Republic of Turkey on October 29, 1923."],
+    ];
+    const addFeast = (start, days, name, text) => {
+      if (!start) return;
+      const eve = new Date(y, start[0], start[1] - 1);
+      list.push([eve.getMonth(), eve.getDate(), name + " Arifesi", "The eve of " + name + ". A half-day holiday from the afternoon."]);
+      for (let i = 0; i < days; i++) {
+        const dt = new Date(y, start[0], start[1] + i);
+        list.push([dt.getMonth(), dt.getDate(), `${name} (day ${i + 1} of ${days})`, text]);
+      }
+    };
+    addFeast(RAMAZAN[y], 3, "Ramazan Bayramı", "Eid al-Fitr, the feast that ends the month of Ramadan fasting. Families visit elders, children collect sweets and pocket money.");
+    addFeast(KURBAN[y], 4, "Kurban Bayramı", "Eid al-Adha, the Feast of Sacrifice. Families sacrifice an animal and share the meat with relatives and people in need.");
+    return list.map(([m, d, name, text]) => ({ y, m, d, name, text, country: "tr" }));
+  }
+
+  const holidayCache = {};
+  function holidaysFor(y) {
+    if (!holidayCache[y]) {
+      const map = {};
+      [...usHolidays(y), ...trHolidays(y)].forEach(h => {
+        const k = key(new Date(h.y, h.m, h.d));
+        (map[k] = map[k] || []).push(h);
+      });
+      holidayCache[y] = map;
+    }
+    return holidayCache[y];
+  }
+  const holidaysOn = date => holidaysFor(date.getFullYear())[key(date)] || [];
+
+  // --- Date helpers ---------------------------------------------------------
+  function key(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+  function sameDay(a, b) { return key(a) === key(b); }
+  function isoWeek(d) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+  }
+  function daysBetween(a, b) {
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+  }
+  function dayOfYear(d) { return daysBetween(new Date(d.getFullYear(), 0, 1), d) + 1; }
+  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+  function ordinal(n) { const s = ["th","st","nd","rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function relative(n) {
+    if (n === 0) return "Today";
+    if (n === 1) return "Tomorrow";
+    if (n === -1) return "Yesterday";
+    return n > 0 ? `In ${n} days` : `${-n} days ago`;
+  }
+  function nextHoliday(from) {
+    for (let i = 1; i <= 400; i++) {
+      const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+      const hs = holidaysOn(d);
+      if (hs.length) return { d, h: hs[0], days: i };
+    }
+    return null;
+  }
+
+  // --- Rendering ------------------------------------------------------------
+  const today = new Date();
+  let view = new Date(today.getFullYear(), today.getMonth(), 1);
+  let selected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const grid = document.getElementById("grid");
+  const label = document.getElementById("month-label");
+  const detail = document.getElementById("detail");
+
+  function renderCalendar() {
+    label.textContent = `${MONTHS[view.getMonth()]} ${view.getFullYear()}`;
+    grid.textContent = "";
+    const head = ["Wk", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    head.forEach(h => { const el = document.createElement("div"); el.className = "dow"; el.textContent = h; grid.appendChild(el); });
+
+    const start = new Date(view.getFullYear(), view.getMonth(), 1 - view.getDay());
+    const weeks = Math.ceil((view.getDay() + new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate()) / 7);
+    for (let w = 0; w < weeks; w++) {
+      const monday = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + 1);
+      const wk = document.createElement("div");
+      wk.className = "wk"; wk.textContent = isoWeek(monday); wk.title = "ISO week " + isoWeek(monday);
+      grid.appendChild(wk);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + i);
+        const hs = holidaysOn(d);
+        const b = document.createElement("button");
+        b.className = "day";
+        if (d.getMonth() !== view.getMonth()) b.classList.add("out");
+        if (i === 0 || i === 6) b.classList.add("weekend");
+        if (sameDay(d, today)) b.classList.add("today");
+        if (sameDay(d, selected)) b.classList.add("selected");
+        const countries = [...new Set(hs.map(h => h.country))];
+        countries.forEach(c => b.classList.add(c));
+        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}</span>`;
+        b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}`);
+        b.addEventListener("click", () => {
+          selected = d;
+          if (d.getMonth() !== view.getMonth()) view = new Date(d.getFullYear(), d.getMonth(), 1);
+          renderCalendar(); renderDetail();
+        });
+        grid.appendChild(b);
+      }
+    }
+  }
+
+  function renderDetail() {
+    const d = selected;
+    const hs = holidaysOn(d);
+    const rel = daysBetween(today, d);
+    const totalDays = isLeap(d.getFullYear()) ? 366 : 365;
+    const doy = dayOfYear(d);
+    const nh = nextHoliday(d);
+
+    let html = `<p class="kicker">${DAYS[d.getDay()]} · ${relative(rel)}</p>
+      <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>`;
+
+    if (hs.length) {
+      html += hs.map(h => `<div class="holiday ${h.country}">
+          <span class="country">${h.country === "us" ? "United States" : "Turkey"}</span>
+          <h3>${h.name}</h3><p>${h.text}</p></div>`).join("");
+    } else {
+      const weekend = d.getDay() === 0 || d.getDay() === 6;
+      html += `<p class="plain">No US or Turkish public holiday on this date. It is ${weekend ? "a weekend day" : "a regular working day"}, the ${ordinal(d.getDate())} day of ${MONTHS[d.getMonth()]}.</p>`;
+    }
+
+    html += `<dl class="facts">
+        <dt>Day of year</dt><dd>${doy} of ${totalDays}</dd>
+        <dt>Days left in year</dt><dd>${totalDays - doy}</dd>
+        <dt>ISO week</dt><dd>${isoWeek(d)}</dd>
+        <dt>Quarter</dt><dd>Q${Math.floor(d.getMonth() / 3) + 1}</dd>
+        <dt>From today</dt><dd>${relative(rel)}</dd>
+        ${nh ? `<dt>Next holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
+      </dl>`;
+    detail.innerHTML = html;
+  }
+
+  document.getElementById("prev").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); renderCalendar(); });
+  document.getElementById("next").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); renderCalendar(); });
+  document.getElementById("today").addEventListener("click", () => {
+    view = new Date(today.getFullYear(), today.getMonth(), 1);
+    selected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    renderCalendar(); renderDetail();
+  });
+
+  renderCalendar();
+  renderDetail();
+</script>
+</body>
+</html>
