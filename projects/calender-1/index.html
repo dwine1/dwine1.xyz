@@ -201,6 +201,13 @@
     font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
     border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
   }
+  .dmy { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr 1.2fr; gap: .5rem; }
+  .dmy .field { display: grid; gap: .25rem; min-width: 0; }
+  .dmy select {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: .4rem .5rem; min-height: 2.5rem; width: 100%;
+  }
+  .dmy select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .expiry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .series-info { margin: 0; font-size: .85rem; color: var(--muted); }
   .note-list .rep { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
@@ -291,6 +298,11 @@
             <label for="note-exp-text">Note for that date</label>
             <input type="text" id="note-exp-text" placeholder="e.g. Deadline">
           </div>
+          <div class="dmy" id="note-exp-dmy" aria-label="Expiry date as day, month and year">
+            <div class="field"><label for="note-exp-d">Expiry day</label><select id="note-exp-d"></select></div>
+            <div class="field"><label for="note-exp-m">Expiry month</label><select id="note-exp-m"></select></div>
+            <div class="field"><label for="note-exp-y">Expiry year</label><select id="note-exp-y"></select></div>
+          </div>
         </div>
         <div class="note-actions">
           <button class="save" id="note-save">Save note</button>
@@ -355,6 +367,11 @@
           <div class="field">
             <label for="q-exp-text">Note for that date</label>
             <input type="text" id="q-exp-text" placeholder="e.g. Deadline">
+          </div>
+          <div class="dmy" id="q-exp-dmy" aria-label="Expiry date as day, month and year">
+            <div class="field"><label for="q-exp-d">Expiry day</label><select id="q-exp-d"></select></div>
+            <div class="field"><label for="q-exp-m">Expiry month</label><select id="q-exp-m"></select></div>
+            <div class="field"><label for="q-exp-y">Expiry year</label><select id="q-exp-y"></select></div>
           </div>
         </div>
         <div class="note-actions">
@@ -873,6 +890,36 @@
     });
     untilInput.addEventListener("input", () => { spanSel.value = ""; });
   }
+  // Day / Month / Year dropdowns kept in sync with a date input. Returns a function to refresh them from the input.
+  function wireDMY(input, px) {
+    const dSel = document.getElementById(px + "exp-d"), mSel = document.getElementById(px + "exp-m"), ySel = document.getElementById(px + "exp-y");
+    mSel.add(new Option("–", "")); MONTHS.forEach((m, i) => mSel.add(new Option(m, i + 1)));
+    ySel.add(new Option("–", "")); for (let y = today.getFullYear() - 1; y <= today.getFullYear() + 15; y++) ySel.add(new Option(y, y));
+    function fillDays(keep) {
+      const max = mSel.value && ySel.value ? new Date(+ySel.value, +mSel.value, 0).getDate() : 31;
+      dSel.textContent = ""; dSel.add(new Option("–", ""));
+      for (let d = 1; d <= max; d++) dSel.add(new Option(d, d));
+      dSel.value = keep && +keep <= max ? keep : (keep ? max : "");
+    }
+    function fromInput() {
+      const v = input.value;
+      if (!v) { mSel.value = ""; ySel.value = ""; fillDays(""); return; }
+      const [y, m, d] = v.split("-").map(Number);
+      if (![...ySel.options].some(o => o.value === String(y))) ySel.add(new Option(y, y));
+      ySel.value = y; mSel.value = m; fillDays(String(d));
+    }
+    function toInput() {
+      fillDays(dSel.value);
+      if (dSel.value && mSel.value && ySel.value) {
+        input.value = `${ySel.value}-${String(mSel.value).padStart(2, "0")}-${String(dSel.value).padStart(2, "0")}`;
+      }
+    }
+    [dSel, mSel, ySel].forEach(s => s.addEventListener("change", toInput));
+    input.addEventListener("input", fromInput);
+    input.addEventListener("change", fromInput);
+    fillDays("");
+    return fromInput;
+  }
   function defaultUntil(k) { const d = parseIso(k); return iso(new Date(d.getFullYear(), d.getMonth() + 3, d.getDate())); }
   const noteColorPick = makeSwatches(document.getElementById("note-color"));
   const noteSpan = document.getElementById("note-span");
@@ -881,6 +928,7 @@
   const noteExpiry = document.getElementById("note-expiry");
   const noteExpDate = document.getElementById("note-exp-date");
   const noteExpText = document.getElementById("note-exp-text");
+  const syncNoteDMY = wireDMY(noteExpDate, "note-");
   function syncRepeatUI() {
     noteExpiry.hidden = noteFreq.value !== "none";
     noteExpDate.min = editingKey.slice(0, 10);
@@ -931,6 +979,7 @@
     noteSpan.value = "";
     noteExpDate.value = n && n.expiry ? n.expiry.date : "";
     noteExpText.value = n && n.expiry ? n.expiry.text : "";
+    syncNoteDMY();
     noteColorPick.set(n ? n.color : "blue");
     syncRepeatUI();
     noteRemove.disabled = !n;
@@ -1042,6 +1091,7 @@
     qSpan.value = "";
     qExpDate.value = n && n.expiry ? n.expiry.date : "";
     qExpText.value = n && n.expiry ? n.expiry.text : "";
+    syncQDMY();
     qColorPick.set(n ? n.color : "blue");
     syncQuickRepeat();
     qRemove.disabled = !n;
@@ -1054,6 +1104,7 @@
   const qExpiry = document.getElementById("q-expiry");
   const qExpDate = document.getElementById("q-exp-date");
   const qExpText = document.getElementById("q-exp-text");
+  const syncQDMY = wireDMY(qExpDate, "q-");
   function syncQuickRepeat() {
     qUntilField.hidden = qFreq.value === "none";
     qSpanField.hidden = qUntilField.hidden;
