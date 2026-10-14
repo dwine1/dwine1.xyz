@@ -12,6 +12,7 @@
     --accent: #2b4fd8; --accent-soft: #e2e8fd;
     --us: #b4232f; --us-soft: #fbe3e5;
     --tr: #0e7a5a; --tr-soft: #dcf3ea;
+    --obs: #b45f06; --obs-soft: #fdf1e2;
     --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
     --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -19,13 +20,13 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
-      --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a;
+      --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
-    --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a;
+    --accent: #8ea6ff; --accent-soft: #1d2848; --us: #ff8a93; --us-soft: #3a1c21; --tr: #5fd3a8; --tr-soft: #14322a; --obs: #f0a95a; --obs-soft: #2e2214;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -72,13 +73,16 @@
   .day.us { background: var(--us-soft); }
   .day.tr { background: var(--tr-soft); }
   .day.us.tr { background: linear-gradient(135deg, var(--us-soft) 50%, var(--tr-soft) 50%); }
+  .day.obs:not(.us):not(.tr):not(.selected) { border-style: dashed; border-color: var(--obs); }
+  .day.obs:not(.us):not(.tr) { background: var(--obs-soft); }
   .day.today .n { background: var(--accent); color: var(--surface); border-radius: 999px; padding: 0 .35rem; }
-  .day.selected { border: 2px solid var(--accent); }
+  .day.selected, .day.obs.selected { border: 2px solid var(--accent); }
   .n { font-weight: 700; font-size: .95rem; line-height: 1.4; }
   .tags { display: flex; gap: 3px; }
   .tag { font-family: var(--mono); font-size: .6rem; font-weight: 500; line-height: 1; padding: 2px 3px; border-radius: 3px; color: var(--surface); }
   .tag.us { background: var(--us); }
   .tag.tr { background: var(--tr); }
+  .tag.obs { background: var(--obs); }
 
   .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; font-size: .85rem; color: var(--muted); }
   .legend span { display: inline-flex; align-items: center; gap: .4rem; }
@@ -90,6 +94,7 @@
   .holiday { border-left: 4px solid var(--line); padding: .5rem .75rem; border-radius: 4px; display: grid; gap: .25rem; }
   .holiday.us { border-color: var(--us); background: var(--us-soft); }
   .holiday.tr { border-color: var(--tr); background: var(--tr-soft); }
+  .holiday.obs { border-color: var(--obs); background: var(--obs-soft); border-left-style: dashed; }
   .holiday h3 { margin: 0; font-size: 1.05rem; }
   .holiday .country { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .holiday p { margin: 0; }
@@ -118,6 +123,7 @@
       <div class="legend">
         <span><i class="sw" style="background:var(--us)"></i>US holiday</span>
         <span><i class="sw" style="background:var(--tr)"></i>Turkey holiday</span>
+        <span><i class="sw" style="background:var(--obs)"></i>Special day (not a day off)</span>
         <span><i class="sw" style="background:var(--accent)"></i>Today</span>
       </div>
     </section>
@@ -187,11 +193,50 @@
     return list.map(([m, d, name, text]) => ({ y, m, d, name, text, country: "tr" }));
   }
 
+  // Easter Sunday (Anonymous Gregorian algorithm); returns [month, day].
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    return [Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1];
+  }
+
+  // Well-known days that are not official days off. country: "us", "tr" or "both".
+  function observances(y) {
+    const thanksgiving = nthWeekday(y, 10, 4, 4);
+    const [em, ed] = easter(y);
+    return [
+      [1, 2, "us", "Groundhog Day", "If Punxsutawney Phil sees his shadow in Pennsylvania, folklore says six more weeks of winter."],
+      [1, nthWeekday(y, 1, 0, 2), "us", "Super Bowl Sunday", "The NFL championship game, one of the most watched TV broadcasts in America. Usually the second Sunday of February."],
+      [1, 14, "both", "Valentine's Day (Sevgililer Günü)", "A day for couples: flowers, chocolates and cards. Celebrated in both the US and Turkey."],
+      [2, nthWeekday(y, 2, 0, 2), "us", "Daylight saving time starts", "Clocks in most of the US move forward one hour at 2 a.m. Turkey no longer changes its clocks."],
+      [2, 8, "both", "International Women's Day (Dünya Kadınlar Günü)", "A worldwide day celebrating women's achievements and calling for equal rights."],
+      [2, 17, "us", "St. Patrick's Day", "Irish heritage day: green everything, parades and the Chicago River dyed green."],
+      [2, 18, "tr", "Çanakkale Zaferi", "Çanakkale Victory and Martyrs' Remembrance Day, marking the 1915 naval victory at Gallipoli."],
+      [3, 1, "both", "April Fools' Day (1 Nisan Şakası)", "A day for pranks and hoaxes."],
+      [em, ed, "us", "Easter Sunday", "Christian celebration of the resurrection of Jesus. Egg hunts, the Easter Bunny and family meals. Date moves every year."],
+      [3, 22, "both", "Earth Day", "A worldwide day for environmental awareness, first held in 1970 in the US."],
+      [4, 5, "us", "Cinco de Mayo", "Celebrates Mexican heritage in the US, marking the 1862 Battle of Puebla."],
+      [4, nthWeekday(y, 4, 0, 2), "both", "Mother's Day (Anneler Günü)", "A day to honor mothers, on the second Sunday of May in both the US and Turkey."],
+      [5, nthWeekday(y, 5, 0, 3), "both", "Father's Day (Babalar Günü)", "A day to honor fathers, on the third Sunday of June in both the US and Turkey."],
+      [9, 31, "us", "Halloween", "Costumes, jack-o'-lanterns and trick-or-treating for candy. Rooted in the old Celtic festival of Samhain."],
+      [10, nthWeekday(y, 10, 0, 1), "us", "Daylight saving time ends", "Clocks in most of the US move back one hour at 2 a.m."],
+      [10, nthWeekday(y, 10, 2, 1) + (nthWeekday(y, 10, 2, 1) === 1 ? 7 : 0), "us", "Election Day", "The Tuesday after the first Monday of November, when US general elections are held."],
+      [10, 10, "tr", "Atatürk'ü Anma Günü", "Anniversary of Atatürk's death in 1938. At 9:05 a.m. sirens sound and the whole country stops for a moment of silence."],
+      [10, 24, "tr", "Öğretmenler Günü", "Teachers' Day in Turkey. Students bring flowers and cards to their teachers."],
+      [10, thanksgiving + 1, "us", "Black Friday", "The day after Thanksgiving, famous for doorbuster sales. Traditionally the start of the holiday shopping season."],
+      [10, thanksgiving + 2, "us", "Small Business Saturday", "Encourages holiday shopping at local, independent stores."],
+      [10, thanksgiving + 4, "us", "Cyber Monday", "The Monday after Thanksgiving, the online counterpart to Black Friday."],
+      [11, 24, "us", "Christmas Eve", "The evening before Christmas: family dinners, church services and last-minute gift wrapping."],
+      [11, 31, "both", "New Year's Eve (Yılbaşı Gecesi)", "The last night of the year, celebrated with parties, countdowns and fireworks at midnight."],
+    ].map(([m, d, country, name, text]) => ({ y, m, d, name, text, country, obs: true }));
+  }
+
   const holidayCache = {};
   function holidaysFor(y) {
     if (!holidayCache[y]) {
       const map = {};
-      [...usHolidays(y), ...trHolidays(y)].forEach(h => {
+      [...usHolidays(y), ...trHolidays(y), ...observances(y)].forEach(h => {
         const k = key(new Date(h.y, h.m, h.d));
         (map[k] = map[k] || []).push(h);
       });
@@ -226,7 +271,7 @@
   function nextHoliday(from) {
     for (let i = 1; i <= 400; i++) {
       const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
-      const hs = holidaysOn(d);
+      const hs = holidaysOn(d).filter(h => !h.obs);
       if (hs.length) return { d, h: hs[0], days: i };
     }
     return null;
@@ -263,9 +308,11 @@
         if (i === 0 || i === 6) b.classList.add("weekend");
         if (sameDay(d, today)) b.classList.add("today");
         if (sameDay(d, selected)) b.classList.add("selected");
-        const countries = [...new Set(hs.map(h => h.country))];
+        const countries = [...new Set(hs.filter(h => !h.obs).map(h => h.country))];
         countries.forEach(c => b.classList.add(c));
-        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}</span>`;
+        const hasObs = hs.some(h => h.obs);
+        if (hasObs) b.classList.add("obs");
+        b.innerHTML = `<span class="n">${d.getDate()}</span><span class="tags">${countries.map(c => `<span class="tag ${c}">${c.toUpperCase()}</span>`).join("")}${hasObs ? `<span class="tag obs" title="Special day">★</span>` : ""}</span>`;
         b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}`);
         b.addEventListener("click", () => {
           selected = d;
@@ -289,12 +336,13 @@
       <h2>${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}</h2>`;
 
     if (hs.length) {
-      html += hs.map(h => `<div class="holiday ${h.country}">
-          <span class="country">${h.country === "us" ? "United States" : "Turkey"}</span>
+      const where = { us: "United States", tr: "Turkey", both: "United States & Turkey" };
+      html += hs.map(h => `<div class="holiday ${h.obs ? "obs" : h.country}">
+          <span class="country">${where[h.country]} · ${h.obs ? "special day" : "public holiday"}</span>
           <h3>${h.name}</h3><p>${h.text}</p></div>`).join("");
     } else {
       const weekend = d.getDay() === 0 || d.getDay() === 6;
-      html += `<p class="plain">No US or Turkish public holiday on this date. It is ${weekend ? "a weekend day" : "a regular working day"}, the ${ordinal(d.getDate())} day of ${MONTHS[d.getMonth()]}.</p>`;
+      html += `<p class="plain">Nothing special on this date. It is ${weekend ? "a weekend day" : "a regular working day"}, the ${ordinal(d.getDate())} day of ${MONTHS[d.getMonth()]}.</p>`;
     }
 
     html += `<dl class="facts">
@@ -303,7 +351,7 @@
         <dt>ISO week</dt><dd>${isoWeek(d)}</dd>
         <dt>Quarter</dt><dd>Q${Math.floor(d.getMonth() / 3) + 1}</dd>
         <dt>From today</dt><dd>${relative(rel)}</dd>
-        ${nh ? `<dt>Next holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
+        ${nh ? `<dt>Next public holiday</dt><dd>${nh.h.name} (${nh.h.country.toUpperCase()}), ${MONTHS[nh.d.getMonth()]} ${nh.d.getDate()}, in ${nh.days} ${nh.days === 1 ? "day" : "days"}</dd>` : ""}
       </dl>`;
     detail.innerHTML = html;
   }
