@@ -779,6 +779,7 @@
       notes[editingKey] = buildNote(text, freq, until, noteExpDate.value, noteExpText.value.trim(), prev);
     }
     const ok = storeNotes();
+    if (ok) editingKey = newKey(selected); // clear the editor for a fresh note on the same date
     renderCalendar(); renderDetail();
     renderNotes(!ok ? "Couldn't save: this browser is blocking storage."
       : !text ? "Note was empty, so nothing is saved for this date."
@@ -876,13 +877,14 @@
     const expErr = freq === "none" ? checkExpiry(start, qExpDate.value) : "";
     if (expErr) { qStatus.textContent = expErr; return; }
     const prev = getNote(k);
-    notes[k] = buildNote(text, freq, until, qExpDate.value, qExpText.value.trim(), prev);
+    const expDate = qExpDate.value;
+    notes[k] = buildNote(text, freq, until, expDate, qExpText.value.trim(), prev);
     const ok = storeNotes();
-    qKey = k;
+    qKey = ok ? null : k; // clear the form for a fresh note on the same date
     refreshAll();
-    loadQuick(k);
+    loadQuick(qKey);
     qStatus.textContent = !ok ? "Couldn't save: this browser is blocking storage."
-      : freq === "none" ? `Saved for ${fmt(start)}${qExpDate.value ? `, expiring ${fmt(qExpDate.value)}` : ""}.` : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} from ${fmt(start)} until ${fmt(until)}.`;
+      : freq === "none" ? `Saved for ${fmt(start)}${expDate ? `, expiring ${fmt(expDate)}` : ""}.` : `Saved. Repeats ${FREQ_LABEL[freq].toLowerCase()} from ${fmt(start)} until ${fmt(until)}.`;
   });
   qRemove.addEventListener("click", () => {
     if (!qKey) return;
