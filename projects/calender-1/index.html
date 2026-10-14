@@ -94,6 +94,9 @@
   .lbl { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .color-field { display: grid; gap: .3rem; }
 
+  .cal-col { display: grid; gap: 1.5rem; }
+  .mini .cal-head h2 { font-size: 1.2rem; }
+  .day.blank { visibility: hidden; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; }
 
   .cal-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
@@ -297,6 +300,7 @@
   <h1>Calender 1</h1>
 
   <div class="layout">
+    <div class="cal-col">
     <section class="panel" aria-label="Calendar">
       <div class="cal-head">
         <h2 id="month-label"></h2>
@@ -315,6 +319,15 @@
         <span><i class="sw" style="background:var(--accent)"></i>Today / has a note (✎)</span>
       </div>
     </section>
+    <section class="panel mini" aria-label="Next month">
+      <div class="cal-head"><h2 id="next-label"></h2></div>
+      <div class="grid" id="next-grid" role="grid"></div>
+    </section>
+    <section class="panel mini" aria-label="Previous month">
+      <div class="cal-head"><h2 id="prev-label"></h2></div>
+      <div class="grid" id="prev-grid" role="grid"></div>
+    </section>
+    </div>
 
     <div class="side">
       <section class="panel detail" id="detail" aria-live="polite"></section>
@@ -842,6 +855,17 @@
 
   function renderCalendar() {
     label.textContent = `${MONTHS[view.getMonth()]} ${view.getFullYear()}`;
+    renderMonth(grid, view, true);
+    const nx = new Date(view.getFullYear(), view.getMonth() + 1, 1), pv = new Date(view.getFullYear(), view.getMonth() - 1, 1);
+    document.getElementById("next-label").textContent = `${MONTHS[nx.getMonth()]} ${nx.getFullYear()}`;
+    document.getElementById("prev-label").textContent = `${MONTHS[pv.getMonth()]} ${pv.getFullYear()}`;
+    renderMonth(document.getElementById("next-grid"), nx, false);
+    renderMonth(document.getElementById("prev-grid"), pv, false);
+    renderIndex();
+  }
+
+  // Draw one month into a grid. The main grid shows neighbouring days greyed out; the extra grids leave them blank.
+  function renderMonth(grid, view, main) {
     grid.textContent = "";
     const head = ["Wk", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     head.forEach(h => { const el = document.createElement("div"); el.className = "dow"; el.textContent = h; grid.appendChild(el); });
@@ -858,6 +882,11 @@
         const hs = holidaysOn(d);
         const b = document.createElement("button");
         b.className = "day";
+        if (!main && d.getMonth() !== view.getMonth()) {
+          b.classList.add("blank"); b.tabIndex = -1; b.setAttribute("aria-hidden", "true");
+          grid.appendChild(b);
+          continue;
+        }
         if (d.getMonth() !== view.getMonth()) b.classList.add("out");
         if (i === 0 || i === 6) b.classList.add("weekend");
         if (sameDay(d, today)) b.classList.add("today");
@@ -877,14 +906,14 @@
         b.setAttribute("aria-label", `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${hs.length ? ": " + hs.map(h => h.name).join(", ") : ""}${hasNote ? ", has a note" : ""}`);
         b.addEventListener("click", () => {
           selected = d;
-          if (d.getMonth() !== view.getMonth()) view = new Date(d.getFullYear(), d.getMonth(), 1);
+          if (main && d.getMonth() !== view.getMonth()) setView(new Date(d.getFullYear(), d.getMonth(), 1));
           renderCalendar(); renderDetail(); renderNotes();
         });
         grid.appendChild(b);
       }
     }
-    renderIndex();
   }
+  function setView(v) { view = v; }
 
   // The next date that matters for note k, counted from today: next repeat, expiry date, or the note's own date.
   function nextFor(k) {
