@@ -270,8 +270,8 @@
   </div>
 </div>
 
-<script src="cities.js?v=8"></script>
-<script src="us-map.js?v=8"></script>
+<script src="cities.js?v=9"></script>
+<script src="us-map.js?v=9"></script>
 <script>
   // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
   const LEGACY = {
@@ -332,7 +332,7 @@
   const PINS = typeof US_PINS === "object" ? US_PINS : {};
   const US_CITIES = CITIES.filter(c => c.country === "United States" && PINS[c.name]);
   const usKey = (n) => US_CITIES.find(c => c.name === n)?.key ?? null;
-  const DEFAULT_PINS = ["New York", "Chicago", "Denver", "Los Angeles"].map(usKey);
+  const DEFAULT_PINS = ["New York", "Chicago", "Denver", "Los Angeles", null, null, null, null].map(n => n && usKey(n));
   const KEY = "world-time-zones";
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -346,7 +346,7 @@
         const diffs = DEFAULT_DIFFS.map((d, i) => Array.isArray(s.diffs) && okPair(s.diffs[i]) ? s.diffs[i]
           : (i === 0 && okPair(s.diff)) ? s.diff : d.slice());
         const slots = [0, 1, 2, 3].map(i => (Array.isArray(s.slots) && byKey.has(s.slots[i])) ? s.slots[i] : (Array.isArray(s.slots) ? null : DEFAULT_SLOTS[i]));
-        const pins = [0, 1, 2, 3].map(i => Array.isArray(s.pins) ? (US_CITIES.some(c => c.key === s.pins[i]) ? s.pins[i] : null) : DEFAULT_PINS[i]);
+        const pins = DEFAULT_PINS.map((_, i) => Array.isArray(s.pins) ? (US_CITIES.some(c => c.key === s.pins[i]) ? s.pins[i] : null) : DEFAULT_PINS[i]);
         return { cities: [...new Set(keys)], slots, diffs, pins, h12: !!s.h12 };
       }
     } catch (e) {}
@@ -737,8 +737,8 @@
     }
   }
 
-  // Pin map: up to four US cities, each with its own search box and Remove button, shown at their real location.
-  const PIN_COLORS = ["#e5484d", "#2b4fd8", "#12a594", "#f76b15"];
+  // Pin map: up to eight US cities, each with its own search box and Remove button, shown at their real location.
+  const PIN_COLORS = ["#e5484d", "#2b4fd8", "#12a594", "#f76b15", "#8e4ec6", "#d6409f", "#a18072", "#5a9e2f"];
   const pinSvg = el("svg", { viewBox: "0 0 975 610", role: "img", "aria-label": "Map of the US with the chosen cities pinned" });
   document.getElementById("pinMap").appendChild(pinSvg);
   for (const z of Object.values(US_MAP.zones)) el("path", { d: z.d, class: "land" }, pinSvg);
