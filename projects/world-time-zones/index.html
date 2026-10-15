@@ -103,6 +103,7 @@
   .slot .time { font-size: 1.2rem; }
   .slot .date, .slot .offset { font-size: .7rem; }
 
+  .diffs { display: grid; gap: .9rem; }
   .diff { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; display: grid; gap: .75rem; text-align: center; }
   .diff-pick { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: center; }
   .diff-pick select {
@@ -193,16 +194,7 @@
   <aside class="panel" aria-labelledby="slotsTitle">
     <h2 id="slotsTitle">Compare 4 cities</h2>
     <ul class="slots" id="slots"></ul>
-    <section class="diff" aria-label="Time difference">
-      <h2>Time difference</h2>
-      <div class="diff-pick">
-        <select id="diffA" aria-label="First clock"></select>
-        <span>vs</span>
-        <select id="diffB" aria-label="Second clock"></select>
-      </div>
-      <div class="diff-hms" id="diffHms">--:--:--<small>HRS MIN SEC</small></div>
-      <p class="diff-text" id="diffText"></p>
-    </section>
+    <div class="diffs" id="diffs"></div>
   </aside>
   </div>
 </div>
@@ -262,6 +254,7 @@
   const DEFAULTS = ["Istanbul", "London", "New York", "Los Angeles", "Tokyo", "Sydney", "Dubai", "Berlin"]
     .map(n => byName.get(n).key);
   const DEFAULT_SLOTS = ["Istanbul", "New York", "Tokyo", "London"].map(n => byName.get(n).key);
+  const DEFAULT_DIFFS = [[0, 1], [2, 3], [0, 2]];
   const KEY = "world-time-zones";
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -271,12 +264,14 @@
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.cities)) {
         const keys = s.cities.map(k => byKey.has(k) ? k : byName.get(k)?.key).filter(Boolean);
-        const diff = (Array.isArray(s.diff) && s.diff.length === 2) ? s.diff : [0, 1];
+        const okPair = (d) => Array.isArray(d) && d.length === 2 && d.every(i => i >= 0 && i < 4);
+        const diffs = DEFAULT_DIFFS.map((d, i) => Array.isArray(s.diffs) && okPair(s.diffs[i]) ? s.diffs[i]
+          : (i === 0 && okPair(s.diff)) ? s.diff : d.slice());
         const slots = [0, 1, 2, 3].map(i => (Array.isArray(s.slots) && byKey.has(s.slots[i])) ? s.slots[i] : (Array.isArray(s.slots) ? null : DEFAULT_SLOTS[i]));
-        return { cities: [...new Set(keys)], slots, diff, h12: !!s.h12 };
+        return { cities: [...new Set(keys)], slots, diffs, h12: !!s.h12 };
       }
     } catch (e) {}
-    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diff: [0, 1], h12: false };
+    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diffs: DEFAULT_DIFFS.map(d => d.slice()), h12: false };
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   const state = load();
@@ -543,10 +538,30 @@
     tick();
   }
 
-  // Time difference between two of the four slots, as hours, minutes and seconds.
-  const diffSel = [document.getElementById("diffA"), document.getElementById("diffB")];
+  // Time difference blocks, each comparing two of the four slots in hours, minutes and seconds.
+  const diffViews = DEFAULT_DIFFS.map((_, n) => {
+    const sec = document.createElement("section");
+    sec.className = "diff";
+    sec.setAttribute("aria-label", `Time difference ${n + 1}`);
+    sec.innerHTML = `
+      <h2>Time difference ${n + 1}</h2>
+      <div class="diff-pick">
+        <select aria-label="First clock"></select>
+        <span>vs</span>
+        <select aria-label="Second clock"></select>
+      </div>
+      <div class="diff-hms"></div>
+      <p class="diff-text"></p>`;
+    document.getElementById("diffs").appendChild(sec);
+    const sels = [...sec.querySelectorAll("select")];
+    sels.forEach((sel, which) => sel.addEventListener("change", () => {
+      state.diffs[n][which] = +sel.value;
+      save(); tick();
+    }));
+    return { sels, hms: sec.querySelector(".diff-hms"), text: sec.querySelector(".diff-text") };
+  });
   function renderDiffPickers() {
-    diffSel.forEach((sel, which) => {
+    diffViews.forEach((v, n) => v.sels.forEach((sel, which) => {
       sel.textContent = "";
       state.slots.forEach((key, i) => {
         const o = document.createElement("option");
@@ -555,26 +570,23 @@
         o.disabled = !key;
         sel.appendChild(o);
       });
-      sel.value = state.diff[which];
-    });
+      sel.value = state.diffs[n][which];
+    }));
   }
-  diffSel.forEach((sel, which) => sel.addEventListener("change", () => {
-    state.diff[which] = +sel.value;
-    save(); tick();
-  }));
   function updateDiff(now) {
-    const [a, b] = state.diff.map(i => state.slots[i] && byKey.get(state.slots[i]));
-    const hms = document.getElementById("diffHms"), text = document.getElementById("diffText");
     const label = "<small>HRS MIN SEC</small>";
-    if (!a || !b) { hms.innerHTML = "--:--:--" + label; text.textContent = "Pick two filled slots."; return; }
-    // Gap between the two wall clocks right now.
-    const d = (Date.UTC(...wall(b.zone, now)) - Date.UTC(...wall(a.zone, now))) / 1000;
-    const t = Math.abs(d), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
     const pad = (n) => String(n).padStart(2, "0");
-    hms.innerHTML = `${d < 0 ? "−" : ""}${pad(h)}:${pad(m)}:${pad(sec)}` + label;
-    text.textContent = a.key === b.key ? `Both clocks show ${a.name}, so there is no difference.`
-      : d === 0 ? `${b.name} and ${a.name} show the same time.`
-      : `${b.name} is ${h}h ${pad(m)}m ${pad(sec)}s ${d > 0 ? "ahead of" : "behind"} ${a.name}.`;
+    diffViews.forEach((v, n) => {
+      const [a, b] = state.diffs[n].map(i => state.slots[i] && byKey.get(state.slots[i]));
+      if (!a || !b) { v.hms.innerHTML = "--:--:--" + label; v.text.textContent = "Pick two filled slots."; return; }
+      // Gap between the two wall clocks right now.
+      const d = (Date.UTC(...wall(b.zone, now)) - Date.UTC(...wall(a.zone, now))) / 1000;
+      const t = Math.abs(d), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
+      v.hms.innerHTML = `${d < 0 ? "−" : ""}${pad(h)}:${pad(m)}:${pad(sec)}` + label;
+      v.text.textContent = a.key === b.key ? `Both clocks show ${a.name}, so there is no difference.`
+        : d === 0 ? `${b.name} and ${a.name} show the same time.`
+        : `${b.name} is ${h}h ${pad(m)}m ${pad(sec)}s ${d > 0 ? "ahead of" : "behind"} ${a.name}.`;
+    });
   }
   function wall(zone, now) {
     const p = partsIn(zone, now);
@@ -620,7 +632,7 @@
   document.getElementById("reset").addEventListener("click", () => {
     state.cities = DEFAULTS.slice();
     state.slots = DEFAULT_SLOTS.slice();
-    state.diff = [0, 1];
+    state.diffs = DEFAULT_DIFFS.map(d => d.slice());
     save(); render(); renderSlots();
   });
   function setFormat(h12) {
