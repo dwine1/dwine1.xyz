@@ -88,25 +88,39 @@
   .seg button { border: 0; border-radius: 0; }
   .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 2rem; align-items: start; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 30rem; gap: 2rem; align-items: start; }
   .main { display: grid; gap: 1.5rem; min-width: 0; }
   .panel { display: grid; gap: 1rem; border-left: 1px solid var(--line); padding-left: 2rem; }
   .panel h2 { font-family: var(--mono); font-weight: 500; font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; margin: 0; color: var(--muted); }
-  .slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
-  .slot { display: grid; gap: .6rem; }
-  .slot-bar { display: flex; gap: .5rem; }
-  .slot-bar .search { flex: 1 1 auto; }
-  .slot .card { padding: 1rem .75rem .9rem; gap: .6rem; }
-  .slot svg.clock { max-width: 7.5rem; }
-  .slot .time { font-size: 1.35rem; }
+  .slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; }
+  .slot { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+  .slot-bar { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .slot-bar .search { flex: 1 1 7rem; }
+  .slot-bar button { padding-inline: .55rem; }
+  .slot .card { padding: .9rem .5rem .8rem; gap: .5rem; }
+  .slot svg.clock { max-width: 6.5rem; }
+  .slot .city { font-size: 1.05rem; }
+  .slot .time { font-size: 1.2rem; }
+  .slot .date, .slot .offset { font-size: .7rem; }
+
+  .diff { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; display: grid; gap: .75rem; text-align: center; }
+  .diff-pick { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: center; }
+  .diff-pick select {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: .4rem .5rem; min-width: 0; max-width: 100%;
+  }
+  .diff-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .diff-pick span { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .diff-hms { font-family: var(--mono); font-weight: 500; font-size: 2rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .diff-hms small { display: block; font-size: .65rem; letter-spacing: .25em; color: var(--muted); margin-top: .2rem; }
+  .diff-text { margin: 0; color: var(--muted); font-size: .9rem; }
   .slot-empty {
     border: 1px dashed var(--line); border-radius: 12px; padding: 1.5rem 1rem; text-align: center;
     color: var(--muted); font-size: .9rem;
   }
-  @media (max-width: 52rem) {
+  @media (max-width: 68rem) {
     .layout { grid-template-columns: 1fr; }
-    .panel { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 1.5rem; }
-    .slots { grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); }
+    .panel { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 1.5rem; max-width: 34rem; width: 100%; justify-self: center; }
   }
   .sky { margin-left: .3rem; font-size: .95em; }
 
@@ -179,6 +193,16 @@
   <aside class="panel" aria-labelledby="slotsTitle">
     <h2 id="slotsTitle">Compare 4 cities</h2>
     <ul class="slots" id="slots"></ul>
+    <section class="diff" aria-label="Time difference">
+      <h2>Time difference</h2>
+      <div class="diff-pick">
+        <select id="diffA" aria-label="First clock"></select>
+        <span>vs</span>
+        <select id="diffB" aria-label="Second clock"></select>
+      </div>
+      <div class="diff-hms" id="diffHms">--:--:--<small>HRS MIN SEC</small></div>
+      <p class="diff-text" id="diffText"></p>
+    </section>
   </aside>
   </div>
 </div>
@@ -247,11 +271,12 @@
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.cities)) {
         const keys = s.cities.map(k => byKey.has(k) ? k : byName.get(k)?.key).filter(Boolean);
+        const diff = (Array.isArray(s.diff) && s.diff.length === 2) ? s.diff : [0, 1];
         const slots = [0, 1, 2, 3].map(i => (Array.isArray(s.slots) && byKey.has(s.slots[i])) ? s.slots[i] : (Array.isArray(s.slots) ? null : DEFAULT_SLOTS[i]));
-        return { cities: [...new Set(keys)], slots, h12: !!s.h12 };
+        return { cities: [...new Set(keys)], slots, diff, h12: !!s.h12 };
       }
     } catch (e) {}
-    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), h12: false };
+    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diff: [0, 1], h12: false };
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   const state = load();
@@ -514,7 +539,46 @@
         v.body.appendChild(p);
       }
     });
+    renderDiffPickers();
     tick();
+  }
+
+  // Time difference between two of the four slots, as hours, minutes and seconds.
+  const diffSel = [document.getElementById("diffA"), document.getElementById("diffB")];
+  function renderDiffPickers() {
+    diffSel.forEach((sel, which) => {
+      sel.textContent = "";
+      state.slots.forEach((key, i) => {
+        const o = document.createElement("option");
+        o.value = i;
+        o.textContent = `${i + 1} · ${key ? byKey.get(key).name : "empty"}`;
+        o.disabled = !key;
+        sel.appendChild(o);
+      });
+      sel.value = state.diff[which];
+    });
+  }
+  diffSel.forEach((sel, which) => sel.addEventListener("change", () => {
+    state.diff[which] = +sel.value;
+    save(); tick();
+  }));
+  function updateDiff(now) {
+    const [a, b] = state.diff.map(i => state.slots[i] && byKey.get(state.slots[i]));
+    const hms = document.getElementById("diffHms"), text = document.getElementById("diffText");
+    const label = "<small>HRS MIN SEC</small>";
+    if (!a || !b) { hms.innerHTML = "--:--:--" + label; text.textContent = "Pick two filled slots."; return; }
+    // Gap between the two wall clocks right now.
+    const d = (Date.UTC(...wall(b.zone, now)) - Date.UTC(...wall(a.zone, now))) / 1000;
+    const t = Math.abs(d), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    hms.innerHTML = `${d < 0 ? "−" : ""}${pad(h)}:${pad(m)}:${pad(sec)}` + label;
+    text.textContent = a.key === b.key || d === 0
+      ? `${b.name} and ${a.name} show the same time.`
+      : `${b.name} is ${h}h ${pad(m)}m ${pad(sec)}s ${d > 0 ? "ahead of" : "behind"} ${a.name}.`;
+  }
+  function wall(zone, now) {
+    const p = partsIn(zone, now);
+    return [p.year, p.month - 1, p.day, p.hour, p.minute, p.second];
   }
 
   function tick() {
@@ -545,6 +609,7 @@
       c.offset.textContent = `${fmtOffset(off)} · ${fmtDiff(off - myOff)}`;
       c.li.classList.toggle("here", canon(c.zone) === canon(localZone));
     }
+    updateDiff(now);
   }
 
   document.getElementById("add").addEventListener("click", () => {
@@ -555,6 +620,7 @@
   document.getElementById("reset").addEventListener("click", () => {
     state.cities = DEFAULTS.slice();
     state.slots = DEFAULT_SLOTS.slice();
+    state.diff = [0, 1];
     save(); render(); renderSlots();
   });
   function setFormat(h12) {
