@@ -68,8 +68,9 @@
   table.titles { width: 100%; border-collapse: collapse; font-size: .88rem; }
   .titles th { text-align: left; font-family: var(--mono); font-weight: 500; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: .4rem .5rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .titles td { padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-  .titles td:nth-child(2) { font-family: var(--mono); font-size: .8rem; white-space: nowrap; }
-  .titles td:nth-child(3) { color: var(--muted); }
+  .titles .n { width: 2.5rem; text-align: right; font-family: var(--mono); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .titles td:nth-child(3) { font-family: var(--mono); font-size: .8rem; white-space: nowrap; }
+  .titles td:nth-child(4) { color: var(--muted); }
   .titles .kind { display: block; font-family: var(--mono); font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; display: grid; gap: 1rem; }
 
@@ -292,7 +293,7 @@
       </div>
       <div class="table-wrap">
         <table class="titles">
-          <thead><tr><th scope="col">Title</th><th scope="col">Release date</th><th scope="col">Actors</th></tr></thead>
+          <thead><tr><th scope="col" class="n">#</th><th scope="col">Title</th><th scope="col">Release date</th><th scope="col">Actors</th></tr></thead>
           <tbody id="table-body"></tbody>
         </table>
       </div>
@@ -896,13 +897,14 @@
     const body = $("table-body");
     body.textContent = "";
     const rows = tableRows();
-    rows.forEach(r => {
+    rows.forEach((r, i) => {
       const tr = document.createElement("tr");
+      const n = document.createElement("td"); n.className = "n"; n.textContent = i + 1;
       const t = document.createElement("td"); t.textContent = r.title;
       const k = document.createElement("span"); k.className = "kind"; k.textContent = TYPE[r.it.type]; t.appendChild(k);
       const d = document.createElement("td"); d.textContent = r.released || "–";
       const a = document.createElement("td"); a.textContent = r.actors || "–";
-      tr.append(t, d, a);
+      tr.append(n, t, d, a);
       body.appendChild(tr);
     });
     $("table-empty").hidden = rows.length > 0;
@@ -965,9 +967,9 @@
 
   $("dl-xlsx").addEventListener("click", e => busy(e.currentTarget, async () => {
     await loadScript(CDN + "xlsx@0.18.5/dist/xlsx.full.min.js");
-    const rows = tableRows().map(r => ({ "Title": r.title, "Type": TYPE[r.it.type], "Release date": r.released, "Actors": r.actors }));
-    const ws = XLSX.utils.json_to_sheet(rows, { header: ["Title", "Type", "Release date", "Actors"] });
-    ws["!cols"] = [{ wch: 40 }, { wch: 8 }, { wch: 14 }, { wch: 50 }];
+    const rows = tableRows().map((r, i) => ({ "#": i + 1, "Title": r.title, "Type": TYPE[r.it.type], "Release date": r.released, "Actors": r.actors }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ["#", "Title", "Type", "Release date", "Actors"] });
+    ws["!cols"] = [{ wch: 5 }, { wch: 40 }, { wch: 8 }, { wch: 14 }, { wch: 50 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Movies and Series");
     XLSX.writeFile(wb, fileName("xlsx"));
@@ -1010,12 +1012,12 @@
     doc.text(`${items.length} titles · ${new Date().toLocaleDateString()}`, 40, 64);
     doc.autoTable({
       startY: 78,
-      head: [["Title", "Type", "Release date", "Actors"]],
-      body: tableRows().map(r => [txt(r.title), TYPE[r.it.type], r.released, txt(r.actors)]),
+      head: [["#", "Title", "Type", "Release date", "Actors"]],
+      body: tableRows().map((r, i) => [i + 1, txt(r.title), TYPE[r.it.type], r.released, txt(r.actors)]),
       styles: { font: family, fontSize: 9, cellPadding: 5, overflow: "linebreak" },
       headStyles: { fillColor: [43, 79, 216], textColor: 255, fontStyle: "normal" },
       alternateRowStyles: { fillColor: [244, 246, 249] },
-      columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 50 }, 2: { cellWidth: 75 } },
+      columnStyles: { 0: { cellWidth: 26, halign: "right" }, 1: { cellWidth: 160 }, 2: { cellWidth: 48 }, 3: { cellWidth: 72 } },
       margin: { left: 40, right: 40 },
     });
     doc.save(fileName("pdf"));
