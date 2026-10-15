@@ -270,8 +270,8 @@
   </div>
 </div>
 
-<script src="cities.js"></script>
-<script src="us-map.js"></script>
+<script src="cities.js?v=8"></script>
+<script src="us-map.js?v=8"></script>
 <script>
   // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
   const LEGACY = {
@@ -328,8 +328,10 @@
   const DEFAULT_SLOTS = ["Istanbul", "New York", "Tokyo", "London"].map(n => byName.get(n).key);
   const DEFAULT_DIFFS = [[0, 1], [2, 3], [0, 2]];
   // US cities that have a spot on the pin map.
-  const US_CITIES = CITIES.filter(c => c.country === "United States" && US_PINS[c.name]);
-  const usKey = (n) => US_CITIES.find(c => c.name === n).key;
+  // The page has to survive a stale cached data file, so a missing US_PINS just means an empty pin map.
+  const PINS = typeof US_PINS === "object" ? US_PINS : {};
+  const US_CITIES = CITIES.filter(c => c.country === "United States" && PINS[c.name]);
+  const usKey = (n) => US_CITIES.find(c => c.name === n)?.key ?? null;
   const DEFAULT_PINS = ["New York", "Chicago", "Denver", "Los Angeles"].map(usKey);
   const KEY = "world-time-zones";
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -780,10 +782,10 @@
     // Place each label beside its pin, trying the other side or a line up or down
     // when it would leave the map or cover a pin or an earlier label.
     const shown = pinViews.map((v, i) => state.pins[i] && byKey.get(state.pins[i])).filter(Boolean);
-    const placed = shown.map(c => ({ x0: US_PINS[c.name][0] - 20, w: 40, y: US_PINS[c.name][1] }));
+    const placed = shown.map(c => ({ x0: PINS[c.name][0] - 20, w: 40, y: PINS[c.name][1] }));
     pinViews.map((v, i) => ({ v, c: state.pins[i] && byKey.get(state.pins[i]) }))
       .filter(o => o.c)
-      .map(o => ({ ...o, xy: US_PINS[o.c.name] }))
+      .map(o => ({ ...o, xy: PINS[o.c.name] }))
       .sort((a, b) => a.xy[1] - b.xy[1])
       .forEach(({ v, c, xy: [x, y] }) => {
         const w = (c.name.length + 9) * 15;
