@@ -119,6 +119,46 @@
   .item select { width: auto; min-height: 2rem; padding: .15rem .4rem; font-size: .82rem; }
 
   .empty { color: var(--muted); margin: 0; padding: 1rem 0; }
+
+  /* IMDb suggestions under the title field */
+  .ac { position: relative; }
+  .sugg {
+    position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: .25rem; list-style: none;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / .15);
+    max-height: 22rem; overflow-y: auto; text-transform: none; letter-spacing: normal; font-family: var(--body); color: var(--fg);
+  }
+  .sugg li { display: grid; grid-template-columns: 2.5rem 1fr; gap: .6rem; align-items: center; padding: .35rem .4rem; border-radius: 6px; cursor: pointer; }
+  .sugg li[aria-selected="true"], .sugg li:hover { background: var(--accent-soft); }
+  .sugg img, .sugg .noimg { width: 2.5rem; height: 3.6rem; object-fit: cover; border-radius: 4px; background: var(--line); }
+  .sugg .t { font-size: .92rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .sugg .s { display: block; font-size: .78rem; color: var(--muted); }
+  .sugg .note { display: block; padding: .5rem; font-size: .85rem; color: var(--muted); cursor: default; grid-template-columns: 1fr; }
+  .sugg .note:hover { background: none; }
+  .poster-pick { display: flex; gap: .75rem; align-items: center; }
+  .poster-pick img { width: 4rem; height: 5.8rem; object-fit: cover; border-radius: 6px; background: var(--line); }
+  .poster-pick .info { display: grid; gap: .3rem; justify-items: start; font-size: .85rem; color: var(--muted); }
+  .poster-pick a { color: var(--accent); }
+
+  .heart { font-size: 1.15rem; line-height: 1; background: none; border: 0; cursor: pointer; color: var(--muted); padding: .2rem .3rem; min-height: 2rem; }
+  .heart[aria-pressed="true"] { color: #e0245e; }
+  .favtoggle { justify-self: start; font: inherit; font-size: .9rem; display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: .3rem .8rem; cursor: pointer; min-height: 2.4rem; }
+  .favtoggle[aria-pressed="true"] { border-color: #e0245e; color: #e0245e; }
+
+  .item.has-poster { grid-template-columns: 4.5rem minmax(0, 1fr); column-gap: .9rem; }
+  .item.has-poster > :not(.poster) { grid-column: 2; }
+  .item .poster { grid-row: 1 / span 4; width: 4.5rem; height: 6.5rem; object-fit: cover; border-radius: 6px; background: var(--line); }
+  .item .head .heart { margin-left: auto; }
+  @media (max-width: 30rem) { .item.has-poster { grid-template-columns: 3.5rem minmax(0, 1fr); } .item .poster { width: 3.5rem; height: 5rem; } .fav-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .imdb { font-family: var(--mono); font-size: .75rem; color: var(--accent); }
+
+  /* My favourites: a row of poster cards above the form and list */
+  .favs { display: grid; gap: .75rem; }
+  .fav-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: .75rem; }
+  .fav { position: relative; display: grid; gap: .35rem; align-content: start; }
+  .fav .pic { aspect-ratio: 2 / 3; width: 100%; object-fit: cover; border-radius: 8px; background: var(--accent-soft); display: grid; place-items: center; font-family: var(--display); font-size: 2rem; color: var(--accent); border: 1px solid var(--line); }
+  .fav .name { font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .fav .sub { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+  .fav .heart { position: absolute; top: .3rem; right: .3rem; background: var(--surface); border-radius: 999px; width: 2rem; height: 2rem; padding: 0; box-shadow: 0 1px 4px rgb(0 0 0 / .2); }
   .io { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .85rem; color: var(--muted); }
   .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .5rem 1rem; border-radius: 6px; font-size: .9rem; max-width: calc(100% - 32px); }
 </style>
@@ -130,13 +170,29 @@
 
   <div class="stats" id="stats"></div>
 
+  <section class="panel favs" aria-labelledby="favs-title">
+    <h2 id="favs-title">My favourites</h2>
+    <div class="fav-row" id="fav-row"></div>
+    <p class="empty" id="fav-empty" hidden>Tap the ♡ on any title to add it here.</p>
+  </section>
+
   <div class="layout">
     <section class="panel" aria-labelledby="form-title">
       <h2 id="form-title">Add a title</h2>
       <form id="form" autocomplete="off">
-        <label>Title
-          <input id="f-title" required maxlength="200" placeholder="e.g. The Bear">
-        </label>
+        <label for="f-title">Title</label>
+        <div class="ac" style="margin-top:-.55rem">
+          <input id="f-title" required maxlength="200" placeholder="Start typing to search IMDb" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
+          <ul class="sugg" id="sugg" role="listbox" hidden></ul>
+        </div>
+        <div class="poster-pick" id="f-poster-box" hidden>
+          <img id="f-poster" alt="" referrerpolicy="no-referrer">
+          <div class="info">
+            <span id="f-poster-cap"></span>
+            <a id="f-imdb" target="_blank" rel="noopener">Open on IMDb</a>
+            <button class="btn small" type="button" id="f-poster-clear">Remove image</button>
+          </div>
+        </div>
         <div class="lbl">Type
           <div class="seg" id="f-type">
             <button type="button" data-v="movie" aria-pressed="true">Movie</button>
@@ -169,6 +225,7 @@
         <div class="lbl">Rating
           <div class="stars" id="f-stars"></div>
         </div>
+        <button class="favtoggle" type="button" id="f-fav" aria-pressed="false"><span aria-hidden="true">♡</span> Add to my favourites</button>
         <label>Notes
           <textarea id="f-notes" maxlength="2000" placeholder="Where to watch, who recommended it, thoughts…"></textarea>
         </label>
@@ -217,6 +274,10 @@
   let editingId = null;
   let formType = "movie";
   let formRating = 0;
+  let formPoster = "";
+  let formImdb = "";
+  let formCast = "";
+  let formFav = false;
   let typeFilter = "all";
   let statusFilter = "all";
 
@@ -251,6 +312,10 @@
       genre: String(x.genre || "").slice(0, 80),
       rating: num(x.rating, 1, 5),
       notes: String(x.notes || "").slice(0, 2000),
+      poster: /^https:\/\/[^\s"']+$/.test(x.poster || "") ? String(x.poster).slice(0, 500) : "",
+      imdb: /^tt\d{1,10}$/.test(x.imdb || "") ? x.imdb : "",
+      cast: String(x.cast || "").slice(0, 200),
+      fav: x.fav === true,
       added: Number(x.added) || now,
       updated: Number(x.updated) || Number(x.added) || now,
     };
@@ -293,6 +358,9 @@
     formRating = 0;
     setType("movie");
     drawStars();
+    setPoster("", "", "");
+    setFav(false);
+    closeSugg();
     $("form-title").textContent = "Add a title";
     $("f-submit").textContent = "Add";
     $("f-cancel").hidden = true;
@@ -312,6 +380,8 @@
     $("f-notes").value = it.notes;
     formRating = it.rating || 0;
     drawStars();
+    setPoster(it.poster, it.imdb, it.cast);
+    setFav(it.fav);
     $("form-title").textContent = "Edit title";
     $("f-submit").textContent = "Save";
     $("f-cancel").hidden = false;
@@ -332,6 +402,10 @@
       genre: $("f-genre").value.trim(),
       rating: formRating,
       notes: $("f-notes").value.trim(),
+      poster: formPoster,
+      imdb: formImdb,
+      cast: formCast,
+      fav: formFav,
     });
     if (!data) return;
     if (editingId) {
@@ -347,6 +421,120 @@
     render();
   });
   $("f-cancel").addEventListener("click", resetForm);
+
+  function setFav(on) {
+    formFav = !!on;
+    const b = $("f-fav");
+    b.setAttribute("aria-pressed", String(formFav));
+    b.firstElementChild.textContent = formFav ? "♥" : "♡";
+    b.lastChild.textContent = formFav ? " In my favourites" : " Add to my favourites";
+  }
+  $("f-fav").addEventListener("click", () => setFav(!formFav));
+
+  // ----- Poster and IMDb search -----
+  // IMDb image URLs take size options after "._V1_"; ask for a small copy so the page stays light.
+  function sized(url, w) { return url ? url.replace(/\._V1_.*(\.\w+)$/, `._V1_QL75_UX${w}_$1`) : ""; }
+  function imdbUrl(id) { return `https://www.imdb.com/title/${id}/`; }
+
+  function setPoster(poster, imdb, cast) {
+    formPoster = poster || ""; formImdb = imdb || ""; formCast = cast || "";
+    $("f-poster-box").hidden = !formPoster && !formImdb;
+    const img = $("f-poster");
+    img.hidden = !formPoster;
+    if (formPoster) img.src = formPoster;
+    $("f-poster-cap").textContent = formCast;
+    const a = $("f-imdb");
+    a.hidden = !formImdb;
+    if (formImdb) a.href = imdbUrl(formImdb);
+  }
+  $("f-poster-clear").addEventListener("click", () => setPoster("", "", ""));
+
+  const KINDS = { movie: "Movie", tvSeries: "TV series", tvMiniSeries: "Mini series", tvMovie: "TV movie", tvSpecial: "TV special", short: "Short", video: "Video" };
+  const SERIES = new Set(["tvSeries", "tvMiniSeries"]);
+  let sugg = [], active = -1, searchSeq = 0, searchTimer;
+  const titleIn = $("f-title"), suggBox = $("sugg");
+
+  function closeSugg() {
+    suggBox.hidden = true; suggBox.textContent = ""; sugg = []; active = -1;
+    titleIn.setAttribute("aria-expanded", "false");
+    titleIn.removeAttribute("aria-activedescendant");
+  }
+  function suggNote(text) {
+    suggBox.textContent = "";
+    const li = document.createElement("li"); li.className = "note"; li.textContent = text;
+    suggBox.appendChild(li); suggBox.hidden = false;
+  }
+
+  async function searchImdb(q) {
+    const seq = ++searchSeq;
+    const key = q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const first = (key.match(/[a-z0-9]/) || ["x"])[0];
+    try {
+      const res = await fetch(`https://v3.sg.media-imdb.com/suggestion/${first}/${encodeURIComponent(key)}.json`);
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      if (seq !== searchSeq || titleIn.value.trim() !== q) return;
+      sugg = (data.d || []).filter(d => /^tt/.test(d.id) && KINDS[d.qid]).slice(0, 8);
+      drawSugg();
+    } catch {
+      if (seq === searchSeq) suggNote("IMDb search isn't reachable right now. You can still type the title yourself.");
+    }
+  }
+
+  function drawSugg() {
+    suggBox.textContent = ""; active = -1;
+    if (!sugg.length) { suggNote("No IMDb matches. Keep typing, or add it as is."); return; }
+    sugg.forEach((d, i) => {
+      const li = document.createElement("li");
+      li.id = "sugg-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", "false");
+      let pic;
+      if (d.i && d.i.imageUrl) {
+        pic = document.createElement("img"); pic.src = sized(d.i.imageUrl, 80); pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer";
+      } else { pic = document.createElement("span"); pic.className = "noimg"; }
+      const txt = document.createElement("span");
+      const t = document.createElement("span"); t.className = "t"; t.textContent = d.l;
+      const sub = document.createElement("span"); sub.className = "s";
+      sub.textContent = [KINDS[d.qid], d.yr || d.y, d.s].filter(Boolean).join(" · ");
+      txt.append(t, sub);
+      li.append(pic, txt);
+      li.addEventListener("mousedown", e => { e.preventDefault(); pick(i); });
+      suggBox.appendChild(li);
+    });
+    suggBox.hidden = false;
+    titleIn.setAttribute("aria-expanded", "true");
+  }
+
+  function highlight(i) {
+    active = i;
+    [...suggBox.querySelectorAll("[role=option]")].forEach((li, j) => li.setAttribute("aria-selected", String(j === i)));
+    if (i >= 0) { titleIn.setAttribute("aria-activedescendant", "sugg-" + i); $("sugg-" + i).scrollIntoView({ block: "nearest" }); }
+  }
+
+  function pick(i) {
+    const d = sugg[i];
+    if (!d) return;
+    titleIn.value = d.l;
+    if (d.y) $("f-year").value = d.y;
+    setType(SERIES.has(d.qid) ? "series" : "movie");
+    setPoster(d.i && d.i.imageUrl ? sized(d.i.imageUrl, 300) : "", d.id, d.s || "");
+    searchSeq++;
+    closeSugg();
+  }
+
+  titleIn.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = titleIn.value.trim();
+    if (q.length < 2) { searchSeq++; closeSugg(); return; }
+    searchTimer = setTimeout(() => searchImdb(q), 250);
+  });
+  titleIn.addEventListener("keydown", e => {
+    if (suggBox.hidden || !sugg.length) { if (e.key === "Escape") closeSugg(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); highlight((active + 1) % sugg.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); highlight((active - 1 + sugg.length) % sugg.length); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(active); }
+    else if (e.key === "Escape") closeSugg();
+  });
+  titleIn.addEventListener("blur", () => setTimeout(closeSugg, 150));
 
   // ----- List -----
   function touch(it) { it.updated = Date.now(); save(); render(); }
@@ -378,6 +566,8 @@
       stats.appendChild(d);
     });
 
+    renderFavs();
+
     // Filters, with counts that respect the other filter
     const tc = { all: 0, movie: 0, series: 0 }, sc = { all: 0, plan: 0, watching: 0, watched: 0 };
     items.forEach(i => {
@@ -391,7 +581,7 @@
     const shown = items.filter(i =>
       (typeFilter === "all" || i.type === typeFilter) &&
       (statusFilter === "all" || i.status === statusFilter) &&
-      (!q || [i.title, i.genre, i.notes, i.year].join(" ").toLowerCase().includes(q))
+      (!q || [i.title, i.genre, i.notes, i.year, i.cast].join(" ").toLowerCase().includes(q))
     );
     const sort = $("sort").value;
     shown.sort((a, b) =>
@@ -410,10 +600,50 @@
     empty.textContent = items.length ? "Nothing matches these filters." : "Your list is empty. Add a movie or series to get started.";
   }
 
+  function renderFavs() {
+    const favs = items.filter(i => i.fav).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+    const box = $("fav-row");
+    box.textContent = "";
+    $("fav-empty").hidden = favs.length > 0;
+    favs.forEach(it => {
+      const card = document.createElement("div"); card.className = "fav";
+      let pic;
+      if (it.poster) { pic = document.createElement("img"); pic.src = it.poster; pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer"; }
+      else { pic = document.createElement("div"); pic.textContent = it.title.charAt(0).toUpperCase(); }
+      pic.className = "pic";
+      const name = document.createElement("span"); name.className = "name"; name.textContent = it.title;
+      const sub = document.createElement("span"); sub.className = "sub";
+      sub.textContent = [TYPE[it.type], it.year, it.rating ? "★".repeat(it.rating) : ""].filter(Boolean).join(" · ");
+      card.append(pic, heart(it), name, sub);
+      box.appendChild(card);
+    });
+  }
+
+  function heart(it) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "heart";
+    b.setAttribute("aria-pressed", String(it.fav));
+    b.setAttribute("aria-label", it.fav ? `Remove ${it.title} from favourites` : `Add ${it.title} to favourites`);
+    b.textContent = it.fav ? "♥" : "♡";
+    b.onclick = () => {
+      it.fav = !it.fav;
+      if (editingId === it.id) setFav(it.fav);
+      touch(it);
+      toast(it.fav ? `Added “${it.title}” to favourites` : `Removed “${it.title}” from favourites`);
+    };
+    return b;
+  }
+
   function row(it) {
     const li = document.createElement("li");
     li.className = "item";
     li.dataset.status = it.status;
+    if (it.poster) {
+      li.classList.add("has-poster");
+      const img = document.createElement("img");
+      img.className = "poster"; img.src = it.poster; img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer";
+      li.appendChild(img);
+    }
 
     const head = document.createElement("div"); head.className = "head";
     const t = document.createElement("span"); t.className = "title"; t.textContent = it.title;
@@ -421,11 +651,14 @@
     if (it.year) { const y = document.createElement("span"); y.className = "year"; y.textContent = it.year; head.appendChild(y); }
     const tt = document.createElement("span"); tt.className = "tag"; tt.textContent = TYPE[it.type]; head.appendChild(tt);
     const st = document.createElement("span"); st.className = "tag st"; st.textContent = STATUS[it.status]; head.appendChild(st);
+    head.appendChild(heart(it));
     li.appendChild(head);
 
     const meta = document.createElement("div"); meta.className = "meta";
     if (it.rating) { const r = document.createElement("span"); r.className = "rate"; r.textContent = "★".repeat(it.rating) + "☆".repeat(5 - it.rating); r.setAttribute("aria-label", `${it.rating} of 5 stars`); meta.appendChild(r); }
     if (it.genre) { const g = document.createElement("span"); g.textContent = it.genre; meta.appendChild(g); }
+    if (it.cast) { const g = document.createElement("span"); g.textContent = it.cast; meta.appendChild(g); }
+    if (it.imdb) { const a = document.createElement("a"); a.className = "imdb"; a.href = imdbUrl(it.imdb); a.target = "_blank"; a.rel = "noopener"; a.textContent = "IMDb ↗"; meta.appendChild(a); }
     if (it.type === "series" && (it.season || it.episode != null)) {
       const ep = document.createElement("span"); ep.className = "ep";
       ep.textContent = `S${it.season || 1} · E${it.episode ?? 0}`;
