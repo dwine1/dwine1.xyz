@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>World Time Zones · dwine1.xyz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: page header with controls, then a grid of city cards; each card is an analog clock on top and the digital time below. */
+  :root {
+    --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
+    --accent: #2b4fd8; --accent-soft: #e2e8fd; --second: #d8452b;
+    --face: #fbfcfd; --night-face: #1c2530; --night-fg: #e6ebf1;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+      --accent: #8ea6ff; --accent-soft: #1d2848; --second: #ff7a5c;
+      --face: #1c2530; --night-face: #0b1016; --night-fg: #c9d3de; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+    --accent: #8ea6ff; --accent-soft: #1d2848; --second: #ff7a5c;
+    --face: #1c2530; --night-face: #0b1016; --night-fg: #c9d3de; color-scheme: dark;
+  }
+
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 64rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 1.75rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; justify-self: start; }
+  .back:hover { text-decoration: underline; }
+  header { display: grid; gap: .5rem; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; letter-spacing: -.02em; }
+  .lede { margin: 0; color: var(--muted); }
+  .lede strong { color: var(--fg); font-family: var(--mono); font-weight: 500; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
+    border-bottom: 1px solid var(--line); padding-bottom: 1rem;
+  }
+  select, button {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem;
+  }
+  select { max-width: 100%; min-width: 0; flex: 1 1 12rem; }
+  button { cursor: pointer; }
+  button:hover { background: var(--accent-soft); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  :root[data-theme="dark"] button.primary { color: #0f141a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0f141a; } }
+  select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: 1rem; list-style: none; margin: 0; padding: 0; }
+  .card {
+    position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.25rem 1rem 1.1rem; display: grid; justify-items: center; gap: .9rem; text-align: center;
+  }
+  .card.here { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .remove {
+    position: absolute; top: .4rem; right: .4rem; border: 0; background: transparent; color: var(--muted);
+    font-size: 1.1rem; line-height: 1; padding: .3rem .45rem; opacity: .55;
+  }
+  .card:hover .remove, .remove:focus-visible { opacity: 1; }
+
+  svg.clock { width: 100%; max-width: 10.5rem; height: auto; display: block; }
+  .clock .face { fill: var(--face); stroke: var(--line); stroke-width: 2; transition: fill .4s ease; }
+  .clock .tick { stroke: var(--muted); stroke-width: 1; }
+  .clock .tick.major { stroke: var(--fg); stroke-width: 2.5; }
+  .clock .num { fill: var(--muted); font-family: var(--mono); font-size: 9px; text-anchor: middle; dominant-baseline: central; }
+  .clock .hand { stroke: var(--fg); stroke-linecap: round; }
+  .clock .hour { stroke-width: 4.5; }
+  .clock .min { stroke-width: 3; }
+  .clock .sec { stroke: var(--second); stroke-width: 1.4; }
+  .clock .pin { fill: var(--second); }
+  .card.night .clock .face { fill: var(--night-face); }
+  .card.night .clock .hand:not(.sec), .card.night .clock .tick.major { stroke: var(--night-fg); }
+  .card.night .clock .num, .card.night .clock .tick { fill: var(--night-fg); stroke: var(--night-fg); opacity: .8; }
+
+  .digital { display: grid; gap: .15rem; }
+  .city { font-family: var(--display); font-weight: 500; font-size: 1.25rem; line-height: 1.2; }
+  .time { font-family: var(--mono); font-weight: 500; font-size: 1.6rem; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .time .ampm { font-size: .8rem; margin-left: .25rem; color: var(--muted); }
+  .date, .offset { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+  .badge { font-family: var(--mono); font-size: .7rem; color: var(--accent); }
+  .empty { color: var(--muted); margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← All projects</a>
+  <header>
+    <h1>World Time Zones</h1>
+    <p class="lede">Your time: <strong id="localTime">--:--</strong> · <span id="localZone"></span></p>
+  </header>
+
+  <div class="controls">
+    <select id="picker" aria-label="City to add"></select>
+    <button class="primary" id="add">Add city</button>
+    <div class="seg" role="group" aria-label="Clock format">
+      <button id="h24" aria-pressed="true">24h</button>
+      <button id="h12" aria-pressed="false">12h</button>
+    </div>
+    <button id="reset">Reset</button>
+  </div>
+
+  <ul class="grid" id="grid"></ul>
+  <p class="empty" id="empty" hidden>No cities yet. Pick one above and add it.</p>
+</div>
+
+<script>
+  // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
+  const CITIES = [
+    ["Istanbul", "Europe/Istanbul"], ["London", "Europe/London"], ["New York", "America/New_York"],
+    ["Los Angeles", "America/Los_Angeles"], ["Tokyo", "Asia/Tokyo"], ["Sydney", "Australia/Sydney"],
+    ["Dubai", "Asia/Dubai"], ["Berlin", "Europe/Berlin"], ["Paris", "Europe/Paris"], ["Madrid", "Europe/Madrid"],
+    ["Rome", "Europe/Rome"], ["Amsterdam", "Europe/Amsterdam"], ["Athens", "Europe/Athens"], ["Moscow", "Europe/Moscow"],
+    ["Cairo", "Africa/Cairo"], ["Lagos", "Africa/Lagos"], ["Johannesburg", "Africa/Johannesburg"], ["Nairobi", "Africa/Nairobi"],
+    ["Tehran", "Asia/Tehran"], ["Karachi", "Asia/Karachi"], ["Mumbai", "Asia/Kolkata"], ["Kathmandu", "Asia/Kathmandu"],
+    ["Dhaka", "Asia/Dhaka"], ["Bangkok", "Asia/Bangkok"], ["Singapore", "Asia/Singapore"], ["Hong Kong", "Asia/Hong_Kong"],
+    ["Beijing", "Asia/Shanghai"], ["Seoul", "Asia/Seoul"], ["Auckland", "Pacific/Auckland"], ["Honolulu", "Pacific/Honolulu"],
+    ["Anchorage", "America/Anchorage"], ["Vancouver", "America/Vancouver"], ["Denver", "America/Denver"],
+    ["Chicago", "America/Chicago"], ["Mexico City", "America/Mexico_City"], ["Toronto", "America/Toronto"],
+    ["Bogotá", "America/Bogota"], ["Lima", "America/Lima"], ["Santiago", "America/Santiago"],
+    ["São Paulo", "America/Sao_Paulo"], ["Buenos Aires", "America/Argentina/Buenos_Aires"], ["Reykjavík", "Atlantic/Reykjavik"],
+  ];
+  const DEFAULTS = ["Istanbul", "London", "New York", "Los Angeles", "Tokyo", "Sydney", "Dubai", "Berlin"];
+  const KEY = "world-time-zones";
+  const zoneOf = Object.fromEntries(CITIES);
+  const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Saved choices are a convenience; the page works without storage.
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && Array.isArray(s.cities)) return { cities: s.cities.filter(c => zoneOf[c]), h12: !!s.h12 };
+    } catch (e) {}
+    return { cities: DEFAULTS.slice(), h12: false };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  const state = load();
+
+  // Wall-clock parts of `date` in `zone`.
+  function partsIn(zone, date) {
+    const f = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric",
+      hour: "numeric", minute: "numeric", second: "numeric",
+    });
+    const p = {};
+    for (const { type, value } of f.formatToParts(date)) p[type] = +value;
+    return p;
+  }
+  // Offset from UTC in minutes for `zone` at `date`.
+  function offsetMinutes(zone, date) {
+    const p = partsIn(zone, date);
+    const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    return Math.round((asUTC - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+  }
+  function fmtOffset(m) {
+    const sign = m < 0 ? "−" : "+", a = Math.abs(m);
+    return `UTC${sign}${Math.floor(a / 60)}${a % 60 ? ":" + String(a % 60).padStart(2, "0") : ""}`;
+  }
+  function fmtDiff(m) {
+    if (m === 0) return "same as you";
+    const a = Math.abs(m), h = Math.floor(a / 60), r = a % 60;
+    return `${h ? h + "h" : ""}${r ? (h ? " " : "") + r + "m" : ""} ${m > 0 ? "ahead" : "behind"}`;
+  }
+
+  const SVG = "http://www.w3.org/2000/svg";
+  function el(name, attrs, parent) {
+    const n = document.createElementNS(SVG, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function makeClock() {
+    const svg = el("svg", { viewBox: "0 0 120 120", class: "clock", "aria-hidden": "true" });
+    el("circle", { cx: 60, cy: 60, r: 56, class: "face" }, svg);
+    for (let i = 0; i < 60; i++) {
+      const major = i % 5 === 0, a = i * 6 * Math.PI / 180;
+      const r1 = major ? 46 : 50, r2 = 53;
+      el("line", {
+        x1: 60 + r1 * Math.sin(a), y1: 60 - r1 * Math.cos(a), x2: 60 + r2 * Math.sin(a), y2: 60 - r2 * Math.cos(a),
+        class: "tick" + (major ? " major" : ""),
+      }, svg);
+    }
+    for (let h = 3; h <= 12; h += 3) {
+      const a = h * 30 * Math.PI / 180;
+      el("text", { x: 60 + 38 * Math.sin(a), y: 60 - 38 * Math.cos(a), class: "num" }, svg).textContent = h;
+    }
+    const hour = el("line", { x1: 60, y1: 66, x2: 60, y2: 32, class: "hand hour" }, svg);
+    const min = el("line", { x1: 60, y1: 68, x2: 60, y2: 18, class: "hand min" }, svg);
+    const sec = el("line", { x1: 60, y1: 72, x2: 60, y2: 13, class: "hand sec" }, svg);
+    el("circle", { cx: 60, cy: 60, r: 3, class: "pin" }, svg);
+    return { svg, hour, min, sec };
+  }
+
+  const grid = document.getElementById("grid");
+  const picker = document.getElementById("picker");
+  let cards = [];
+
+  function renderPicker() {
+    picker.textContent = "";
+    const left = CITIES.filter(([n]) => !state.cities.includes(n)).sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [n] of left) {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      picker.appendChild(o);
+    }
+    picker.disabled = document.getElementById("add").disabled = left.length === 0;
+  }
+
+  function render() {
+    grid.textContent = "";
+    cards = state.cities.map(name => {
+      const li = document.createElement("li");
+      li.className = "card";
+      const clock = makeClock();
+      li.appendChild(clock.svg);
+      const d = document.createElement("div");
+      d.className = "digital";
+      d.innerHTML = `<span class="city"></span><span class="time"></span><span class="date"></span><span class="offset"></span>`;
+      d.querySelector(".city").textContent = name;
+      li.appendChild(d);
+      const rm = document.createElement("button");
+      rm.className = "remove";
+      rm.textContent = "×";
+      rm.setAttribute("aria-label", `Remove ${name}`);
+      rm.addEventListener("click", () => {
+        state.cities = state.cities.filter(c => c !== name);
+        save(); render();
+      });
+      li.appendChild(rm);
+      grid.appendChild(li);
+      return { name, zone: zoneOf[name], li, clock, time: d.querySelector(".time"), date: d.querySelector(".date"), offset: d.querySelector(".offset") };
+    });
+    document.getElementById("empty").hidden = cards.length > 0;
+    renderPicker();
+    tick();
+  }
+
+  function tick() {
+    const now = new Date();
+    const myOff = offsetMinutes(localZone, now);
+    const lp = partsIn(localZone, now);
+    const lh = state.h12 ? ((lp.hour + 11) % 12) + 1 : lp.hour;
+    document.getElementById("localTime").textContent = `${String(lh).padStart(2, "0")}:${String(lp.minute).padStart(2, "0")}`
+      + (state.h12 ? (lp.hour < 12 ? " AM" : " PM") : "");
+    document.getElementById("localZone").textContent = `${localZone.replace(/_/g, " ")} (${fmtOffset(myOff)})`;
+
+    for (const c of cards) {
+      const p = partsIn(c.zone, now);
+      const s = p.second, m = p.minute + s / 60, h = (p.hour % 12) + m / 60;
+      c.clock.hour.setAttribute("transform", `rotate(${h * 30} 60 60)`);
+      c.clock.min.setAttribute("transform", `rotate(${m * 6} 60 60)`);
+      c.clock.sec.setAttribute("transform", `rotate(${s * 6} 60 60)`);
+      c.li.classList.toggle("night", p.hour < 6 || p.hour >= 19);
+
+      const hh = state.h12 ? ((p.hour + 11) % 12) + 1 : p.hour;
+      const t = `${String(hh).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      c.time.innerHTML = t + (state.h12 ? `<span class="ampm">${p.hour < 12 ? "AM" : "PM"}</span>` : "");
+      c.date.textContent = new Intl.DateTimeFormat("en-GB", { timeZone: c.zone, weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now);
+      const off = offsetMinutes(c.zone, now);
+      c.offset.textContent = `${fmtOffset(off)} · ${fmtDiff(off - myOff)}`;
+      c.li.classList.toggle("here", c.zone === localZone);
+    }
+  }
+
+  document.getElementById("add").addEventListener("click", () => {
+    if (!picker.value) return;
+    state.cities.push(picker.value);
+    save(); render();
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    state.cities = DEFAULTS.slice();
+    save(); render();
+  });
+  function setFormat(h12) {
+    state.h12 = h12;
+    document.getElementById("h12").setAttribute("aria-pressed", h12);
+    document.getElementById("h24").setAttribute("aria-pressed", !h12);
+    save(); tick();
+  }
+  document.getElementById("h12").addEventListener("click", () => setFormat(true));
+  document.getElementById("h24").addEventListener("click", () => setFormat(false));
+  setFormat(state.h12);
+
+  render();
+  // Tick on each second boundary so the second hand stays in step.
+  (function loop() { tick(); setTimeout(loop, 1000 - (Date.now() % 1000) + 5); })();
+</script>
+</body>
+</html>
