@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>Movies and Series · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: back link and title, a stats strip, then two columns: the add/edit form on the left, the filterable list of titles on the right. Stacks on narrow screens. */
+  :root {
+    --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
+    --accent: #2b4fd8; --accent-soft: #e2e8fd;
+    --plan: #b45f06; --plan-soft: #fdf1e2;
+    --watching: #2b4fd8; --watching-soft: #e2e8fd;
+    --watched: #0e7a5a; --watched-soft: #dcf3ea;
+    --star: #e0a400; --danger: #b4232f;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+      --accent: #8ea6ff; --accent-soft: #1d2848;
+      --plan: #f0a95a; --plan-soft: #2e2214; --watching: #8ea6ff; --watching-soft: #1d2848; --watched: #5fd3a8; --watched-soft: #14322a;
+      --star: #ffc93d; --danger: #ff8a93;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+    --accent: #8ea6ff; --accent-soft: #1d2848;
+    --plan: #f0a95a; --plan-soft: #2e2214; --watching: #8ea6ff; --watching-soft: #1d2848; --watched: #5fd3a8; --watched-soft: #14322a;
+    --star: #ffc93d; --danger: #ff8a93;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 72rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 1.5rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; justify-self: start; }
+  .back:hover { text-decoration: underline; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+  h2 { font-family: var(--display); font-weight: 500; font-size: 1.25rem; margin: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 10rem)); gap: .5rem; }
+  @media (max-width: 30rem) { .stats { grid-template-columns: 1fr 1fr; } }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .8rem; display: grid; }
+  .stat b { font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat span { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; display: grid; gap: 1rem; }
+
+  form { display: grid; gap: .85rem; }
+  label, .lbl { font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: grid; gap: .3rem; }
+  input, select, textarea {
+    font: inherit; font-family: var(--body); font-size: .95rem; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: .45rem .6rem; width: 100%; min-height: 2.4rem;
+    text-transform: none; letter-spacing: normal;
+  }
+  textarea { min-height: 4.5rem; resize: vertical; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { flex: 1; font: inherit; font-family: var(--body); text-transform: none; letter-spacing: normal; font-size: .88rem; color: var(--fg); background: var(--bg); border: 0; padding: .45rem .5rem; cursor: pointer; min-height: 2.4rem; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+
+  .stars { display: flex; gap: .1rem; align-items: center; }
+  .stars button { font-size: 1.4rem; line-height: 1; background: none; border: 0; padding: .1rem; cursor: pointer; color: var(--line); }
+  .stars button.on { color: var(--star); }
+  .stars .clear { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-left: .4rem; text-decoration: underline; }
+
+  .btns { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .btn {
+    font: inherit; font-size: .9rem; border-radius: 6px; padding: .45rem .9rem; cursor: pointer; min-height: 2.4rem;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+  .btn.primary:hover { filter: brightness(1.08); color: var(--surface); }
+  .btn.small { font-size: .8rem; padding: .25rem .6rem; min-height: 2rem; }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  .tools { display: grid; gap: .6rem; }
+  .tools .top { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .tools .top input { flex: 1 1 12rem; width: auto; }
+  .tools .top select { width: auto; flex: 0 0 auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .chip { font: inherit; font-size: .8rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: .2rem .7rem; cursor: pointer; min-height: 2rem; }
+  .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .chip .n { font-family: var(--mono); font-size: .72rem; opacity: .7; margin-left: .25rem; }
+
+  ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+  .item { background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 8px; padding: .75rem .9rem; display: grid; gap: .4rem; }
+  .item[data-status="plan"] { --c: var(--plan); --cs: var(--plan-soft); }
+  .item[data-status="watching"] { --c: var(--watching); --cs: var(--watching-soft); }
+  .item[data-status="watched"] { --c: var(--watched); --cs: var(--watched-soft); }
+  .item .head { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: baseline; }
+  .item .title { font-family: var(--display); font-weight: 500; font-size: 1.15rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .item .year { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .tag { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; border-radius: 4px; padding: .05rem .4rem; border: 1px solid var(--line); color: var(--muted); }
+  .tag.st { background: var(--cs); color: var(--c); border-color: transparent; }
+  .item .meta { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: center; font-size: .88rem; color: var(--muted); }
+  .item .rate { color: var(--star); letter-spacing: .05em; }
+  .item .notes { font-size: .9rem; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .ep { display: inline-flex; align-items: center; gap: .35rem; font-family: var(--mono); font-size: .82rem; color: var(--fg); }
+  .item .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .item select { width: auto; min-height: 2rem; padding: .15rem .4rem; font-size: .82rem; }
+
+  .empty { color: var(--muted); margin: 0; padding: 1rem 0; }
+  .io { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .85rem; color: var(--muted); }
+  .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .5rem 1rem; border-radius: 6px; font-size: .9rem; max-width: calc(100% - 32px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← dwine1.xyz</a>
+  <h1>Movies and Series</h1>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="form-title">
+      <h2 id="form-title">Add a title</h2>
+      <form id="form" autocomplete="off">
+        <label>Title
+          <input id="f-title" required maxlength="200" placeholder="e.g. The Bear">
+        </label>
+        <div class="lbl">Type
+          <div class="seg" id="f-type">
+            <button type="button" data-v="movie" aria-pressed="true">Movie</button>
+            <button type="button" data-v="series" aria-pressed="false">Series</button>
+          </div>
+        </div>
+        <div class="row2">
+          <label>Status
+            <select id="f-status">
+              <option value="plan">Plan to watch</option>
+              <option value="watching">Watching</option>
+              <option value="watched">Watched</option>
+            </select>
+          </label>
+          <label>Year
+            <input id="f-year" type="number" inputmode="numeric" min="1880" max="2100" placeholder="2024">
+          </label>
+        </div>
+        <div class="row2" id="f-ep-row" hidden>
+          <label>Season
+            <input id="f-season" type="number" inputmode="numeric" min="1" max="999" placeholder="1">
+          </label>
+          <label>Episode
+            <input id="f-episode" type="number" inputmode="numeric" min="0" max="9999" placeholder="1">
+          </label>
+        </div>
+        <label>Genre
+          <input id="f-genre" maxlength="80" placeholder="e.g. Comedy, Drama">
+        </label>
+        <div class="lbl">Rating
+          <div class="stars" id="f-stars"></div>
+        </div>
+        <label>Notes
+          <textarea id="f-notes" maxlength="2000" placeholder="Where to watch, who recommended it, thoughts…"></textarea>
+        </label>
+        <div class="btns">
+          <button class="btn primary" type="submit" id="f-submit">Add</button>
+          <button class="btn" type="button" id="f-cancel" hidden>Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="list-title">
+      <h2 id="list-title">My list</h2>
+      <div class="tools">
+        <div class="top">
+          <input id="q" type="search" placeholder="Search titles, genres, notes" aria-label="Search">
+          <select id="sort" aria-label="Sort">
+            <option value="updated">Recently changed</option>
+            <option value="added">Recently added</option>
+            <option value="title">Title A–Z</option>
+            <option value="rating">Highest rated</option>
+            <option value="year">Newest year</option>
+          </select>
+        </div>
+        <div class="chips" id="type-chips" aria-label="Filter by type"></div>
+        <div class="chips" id="status-chips" aria-label="Filter by status"></div>
+      </div>
+      <ul class="list" id="list"></ul>
+      <p class="empty" id="empty" hidden></p>
+      <div class="io">
+        <button class="btn small" type="button" id="export">Export</button>
+        <button class="btn small" type="button" id="import">Import</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+        <span>Saved in this browser. Export to back up or move to another device.</span>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+  const KEY = "dwine1-watchlist-v1";
+  const STATUS = { plan: "Plan to watch", watching: "Watching", watched: "Watched" };
+  const TYPE = { movie: "Movie", series: "Series" };
+
+  let items = load();
+  let editingId = null;
+  let formType = "movie";
+  let formRating = 0;
+  let typeFilter = "all";
+  let statusFilter = "all";
+
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(raw) ? raw.map(clean).filter(Boolean) : [];
+    } catch { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); }
+    catch { toast("Couldn't save in this browser. Use Export to keep a copy."); }
+  }
+  function num(v, min, max) {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= min && n <= max ? n : null;
+  }
+  // Normalizes one stored or imported item; returns null if it has no title.
+  function clean(x) {
+    if (!x || typeof x !== "object") return null;
+    const title = String(x.title || "").trim().slice(0, 200);
+    if (!title) return null;
+    const now = Date.now();
+    return {
+      id: String(x.id || Math.random().toString(36).slice(2) + now.toString(36)),
+      title,
+      type: x.type === "series" ? "series" : "movie",
+      status: STATUS[x.status] ? x.status : "plan",
+      year: num(x.year, 1880, 2100),
+      season: num(x.season, 1, 999),
+      episode: num(x.episode, 0, 9999),
+      genre: String(x.genre || "").slice(0, 80),
+      rating: num(x.rating, 1, 5),
+      notes: String(x.notes || "").slice(0, 2000),
+      added: Number(x.added) || now,
+      updated: Number(x.updated) || Number(x.added) || now,
+    };
+  }
+
+  const $ = id => document.getElementById(id);
+  const form = $("form");
+
+  // ----- Form -----
+  function setType(t) {
+    formType = t;
+    $("f-type").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === t)));
+    $("f-ep-row").hidden = t !== "series";
+  }
+  $("f-type").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setType(b.dataset.v); });
+
+  function drawStars() {
+    const box = $("f-stars");
+    box.textContent = "";
+    for (let i = 1; i <= 5; i++) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "★";
+      b.className = i <= formRating ? "on" : "";
+      b.setAttribute("aria-label", `${i} star${i > 1 ? "s" : ""}`);
+      b.onclick = () => { formRating = formRating === i ? 0 : i; drawStars(); };
+      box.appendChild(b);
+    }
+    if (formRating) {
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "clear"; c.textContent = "clear";
+      c.onclick = () => { formRating = 0; drawStars(); };
+      box.appendChild(c);
+    }
+  }
+
+  function resetForm() {
+    editingId = null;
+    form.reset();
+    formRating = 0;
+    setType("movie");
+    drawStars();
+    $("form-title").textContent = "Add a title";
+    $("f-submit").textContent = "Add";
+    $("f-cancel").hidden = true;
+  }
+
+  function editItem(id) {
+    const it = items.find(i => i.id === id);
+    if (!it) return;
+    editingId = id;
+    $("f-title").value = it.title;
+    setType(it.type);
+    $("f-status").value = it.status;
+    $("f-year").value = it.year ?? "";
+    $("f-season").value = it.season ?? "";
+    $("f-episode").value = it.episode ?? "";
+    $("f-genre").value = it.genre;
+    $("f-notes").value = it.notes;
+    formRating = it.rating || 0;
+    drawStars();
+    $("form-title").textContent = "Edit title";
+    $("f-submit").textContent = "Save";
+    $("f-cancel").hidden = false;
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    $("f-title").focus({ preventScroll: true });
+  }
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const data = clean({
+      id: editingId || undefined,
+      title: $("f-title").value,
+      type: formType,
+      status: $("f-status").value,
+      year: $("f-year").value,
+      season: formType === "series" ? $("f-season").value : null,
+      episode: formType === "series" ? $("f-episode").value : null,
+      genre: $("f-genre").value.trim(),
+      rating: formRating,
+      notes: $("f-notes").value.trim(),
+    });
+    if (!data) return;
+    if (editingId) {
+      const i = items.findIndex(x => x.id === editingId);
+      if (i >= 0) { data.added = items[i].added; items[i] = data; }
+      toast(`Saved “${data.title}”`);
+    } else {
+      items.push(data);
+      toast(`Added “${data.title}”`);
+    }
+    save();
+    resetForm();
+    render();
+  });
+  $("f-cancel").addEventListener("click", resetForm);
+
+  // ----- List -----
+  function touch(it) { it.updated = Date.now(); save(); render(); }
+
+  function chips(box, options, current, counts, onPick) {
+    box.textContent = "";
+    for (const [v, label] of options) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip";
+      b.setAttribute("aria-pressed", String(v === current));
+      b.textContent = label;
+      const n = document.createElement("span"); n.className = "n"; n.textContent = counts[v] ?? 0;
+      b.appendChild(n);
+      b.onclick = () => onPick(v);
+      box.appendChild(b);
+    }
+  }
+
+  function render() {
+    // Stats
+    const c = { all: items.length, movie: 0, series: 0, plan: 0, watching: 0, watched: 0 };
+    items.forEach(i => { c[i.type]++; c[i.status]++; });
+    const stats = $("stats");
+    stats.textContent = "";
+    [["Titles", c.all], ["Plan to watch", c.plan], ["Watching", c.watching], ["Watched", c.watched]].forEach(([l, n]) => {
+      const d = document.createElement("div"); d.className = "stat";
+      d.innerHTML = "<b></b><span></span>";
+      d.querySelector("b").textContent = n; d.querySelector("span").textContent = l;
+      stats.appendChild(d);
+    });
+
+    // Filters, with counts that respect the other filter
+    const tc = { all: 0, movie: 0, series: 0 }, sc = { all: 0, plan: 0, watching: 0, watched: 0 };
+    items.forEach(i => {
+      if (statusFilter === "all" || i.status === statusFilter) { tc.all++; tc[i.type]++; }
+      if (typeFilter === "all" || i.type === typeFilter) { sc.all++; sc[i.status]++; }
+    });
+    chips($("type-chips"), [["all", "All types"], ["movie", "Movies"], ["series", "Series"]], typeFilter, tc, v => { typeFilter = v; render(); });
+    chips($("status-chips"), [["all", "Any status"], ...Object.entries(STATUS)], statusFilter, sc, v => { statusFilter = v; render(); });
+
+    const q = $("q").value.trim().toLowerCase();
+    const shown = items.filter(i =>
+      (typeFilter === "all" || i.type === typeFilter) &&
+      (statusFilter === "all" || i.status === statusFilter) &&
+      (!q || [i.title, i.genre, i.notes, i.year].join(" ").toLowerCase().includes(q))
+    );
+    const sort = $("sort").value;
+    shown.sort((a, b) =>
+      sort === "title" ? a.title.localeCompare(b.title, undefined, { sensitivity: "base" }) :
+      sort === "rating" ? (b.rating || 0) - (a.rating || 0) || a.title.localeCompare(b.title) :
+      sort === "year" ? (b.year || 0) - (a.year || 0) || a.title.localeCompare(b.title) :
+      sort === "added" ? b.added - a.added :
+      b.updated - a.updated
+    );
+
+    const list = $("list");
+    list.textContent = "";
+    shown.forEach(it => list.appendChild(row(it)));
+    const empty = $("empty");
+    empty.hidden = shown.length > 0;
+    empty.textContent = items.length ? "Nothing matches these filters." : "Your list is empty. Add a movie or series to get started.";
+  }
+
+  function row(it) {
+    const li = document.createElement("li");
+    li.className = "item";
+    li.dataset.status = it.status;
+
+    const head = document.createElement("div"); head.className = "head";
+    const t = document.createElement("span"); t.className = "title"; t.textContent = it.title;
+    head.appendChild(t);
+    if (it.year) { const y = document.createElement("span"); y.className = "year"; y.textContent = it.year; head.appendChild(y); }
+    const tt = document.createElement("span"); tt.className = "tag"; tt.textContent = TYPE[it.type]; head.appendChild(tt);
+    const st = document.createElement("span"); st.className = "tag st"; st.textContent = STATUS[it.status]; head.appendChild(st);
+    li.appendChild(head);
+
+    const meta = document.createElement("div"); meta.className = "meta";
+    if (it.rating) { const r = document.createElement("span"); r.className = "rate"; r.textContent = "★".repeat(it.rating) + "☆".repeat(5 - it.rating); r.setAttribute("aria-label", `${it.rating} of 5 stars`); meta.appendChild(r); }
+    if (it.genre) { const g = document.createElement("span"); g.textContent = it.genre; meta.appendChild(g); }
+    if (it.type === "series" && (it.season || it.episode != null)) {
+      const ep = document.createElement("span"); ep.className = "ep";
+      ep.textContent = `S${it.season || 1} · E${it.episode ?? 0}`;
+      meta.appendChild(ep);
+    }
+    if (meta.childNodes.length) li.appendChild(meta);
+
+    if (it.notes) { const n = document.createElement("p"); n.className = "notes"; n.textContent = it.notes; li.appendChild(n); }
+
+    const act = document.createElement("div"); act.className = "actions";
+    const sel = document.createElement("select");
+    sel.setAttribute("aria-label", `Status of ${it.title}`);
+    Object.entries(STATUS).forEach(([v, l]) => { const o = new Option(l, v, false, v === it.status); sel.add(o); });
+    sel.onchange = () => { it.status = sel.value; touch(it); };
+    act.appendChild(sel);
+    if (it.type === "series") {
+      act.appendChild(btn("+1 episode", () => {
+        if (!it.season) it.season = 1;
+        it.episode = (it.episode || 0) + 1;
+        if (it.status === "plan") it.status = "watching";
+        touch(it);
+      }));
+      act.appendChild(btn("Next season", () => {
+        it.season = (it.season || 1) + 1; it.episode = 0;
+        if (it.status === "plan") it.status = "watching";
+        touch(it);
+      }));
+    }
+    act.appendChild(btn("Edit", () => editItem(it.id)));
+    const del = btn("Delete", () => {
+      if (!confirm(`Delete “${it.title}”?`)) return;
+      items = items.filter(x => x.id !== it.id);
+      if (editingId === it.id) resetForm();
+      save(); render();
+      toast(`Deleted “${it.title}”`);
+    });
+    del.classList.add("danger");
+    act.appendChild(del);
+    li.appendChild(act);
+    return li;
+  }
+
+  function btn(label, fn) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "btn small"; b.textContent = label; b.onclick = fn;
+    return b;
+  }
+
+  $("q").addEventListener("input", render);
+  $("sort").addEventListener("change", () => {
+    try { localStorage.setItem(KEY + "-sort", $("sort").value); } catch {}
+    render();
+  });
+  try { const s = localStorage.getItem(KEY + "-sort"); if (s && $("sort").querySelector(`option[value="${s}"]`)) $("sort").value = s; } catch {}
+
+  // ----- Export / Import -----
+  $("export").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ app: "dwine1-watchlist", version: 1, items }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `watchlist-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $("import").addEventListener("click", () => $("import-file").click());
+  $("import-file").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const incoming = (Array.isArray(data) ? data : data.items || []).map(clean).filter(Boolean);
+      if (!incoming.length) { toast("No titles found in that file."); return; }
+      // Merge: an imported title replaces the one with the same id, others are added.
+      const byId = new Map(items.map(i => [i.id, i]));
+      incoming.forEach(i => byId.set(i.id, i));
+      items = [...byId.values()];
+      save(); render();
+      toast(`Imported ${incoming.length} title${incoming.length > 1 ? "s" : ""}`);
+    } catch { toast("That file isn't a watchlist export."); }
+  });
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+
+  resetForm();
+  render();
+</script>
+</body>
+</html>
