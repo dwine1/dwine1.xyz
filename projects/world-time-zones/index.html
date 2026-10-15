@@ -51,17 +51,38 @@
     display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
     border-bottom: 1px solid var(--line); padding-bottom: 1rem;
   }
-  select, button {
+  button {
     font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface);
     border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem;
   }
-  select { max-width: 100%; min-width: 0; flex: 1 1 12rem; }
+  .search { position: relative; flex: 1 1 14rem; min-width: 0; }
+  .search input {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem;
+  }
+  .search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .options {
+    position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: .25rem;
+    list-style: none; max-height: min(22rem, 60vh); overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(15, 20, 26, .15);
+  }
+  .options li {
+    display: grid; grid-template-columns: 1fr auto; gap: .1rem .75rem; align-items: baseline;
+    padding: .45rem .6rem; border-radius: 5px; cursor: pointer;
+  }
+  .options li[aria-selected="true"] { background: var(--accent-soft); }
+  .options .o-name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+  .options .o-name mark { background: none; color: var(--accent); }
+  .options .o-off { font-family: var(--mono); font-size: .75rem; color: var(--muted); white-space: nowrap; }
+  .options .o-where { grid-column: 1 / -1; font-size: .8rem; color: var(--muted); }
+  .options .o-none { color: var(--muted); cursor: default; display: block; }
   button { cursor: pointer; }
   button:hover { background: var(--accent-soft); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   :root[data-theme="dark"] button.primary { color: #0f141a; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0f141a; } }
-  select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; }
   .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
@@ -93,6 +114,7 @@
   .card.night .clock .num, .card.night .clock .tick { fill: var(--night-fg); stroke: var(--night-fg); opacity: .8; }
 
   .digital { display: grid; gap: .15rem; }
+  .country { font-size: .8rem; color: var(--muted); margin-top: -.1rem; }
   .city { font-family: var(--display); font-weight: 500; font-size: 1.25rem; line-height: 1.2; }
   .time { font-family: var(--mono); font-weight: 500; font-size: 1.6rem; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
   .time .ampm { font-size: .8rem; margin-left: .25rem; color: var(--muted); }
@@ -112,7 +134,11 @@
   </header>
 
   <div class="controls">
-    <select id="picker" aria-label="City to add"></select>
+    <div class="search">
+      <input id="picker" type="text" role="combobox" aria-expanded="false" aria-controls="options" aria-autocomplete="list"
+        autocomplete="off" spellcheck="false" placeholder="Type a city or country…" aria-label="Find a city to add">
+      <ul class="options" id="options" role="listbox" aria-label="Cities" hidden></ul>
+    </div>
     <button class="primary" id="add">Add city</button>
     <div class="seg" role="group" aria-label="Clock format">
       <button id="h24" aria-pressed="true">24h</button>
@@ -125,32 +151,71 @@
   <p class="empty" id="empty" hidden>No cities yet. Pick one above and add it.</p>
 </div>
 
+<script src="cities.js"></script>
 <script>
   // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
-  const CITIES = [
-    ["Istanbul", "Europe/Istanbul"], ["London", "Europe/London"], ["New York", "America/New_York"],
-    ["Los Angeles", "America/Los_Angeles"], ["Tokyo", "Asia/Tokyo"], ["Sydney", "Australia/Sydney"],
-    ["Dubai", "Asia/Dubai"], ["Berlin", "Europe/Berlin"], ["Paris", "Europe/Paris"], ["Madrid", "Europe/Madrid"],
-    ["Rome", "Europe/Rome"], ["Amsterdam", "Europe/Amsterdam"], ["Athens", "Europe/Athens"], ["Moscow", "Europe/Moscow"],
-    ["Cairo", "Africa/Cairo"], ["Lagos", "Africa/Lagos"], ["Johannesburg", "Africa/Johannesburg"], ["Nairobi", "Africa/Nairobi"],
-    ["Tehran", "Asia/Tehran"], ["Karachi", "Asia/Karachi"], ["Mumbai", "Asia/Kolkata"], ["Kathmandu", "Asia/Kathmandu"],
-    ["Dhaka", "Asia/Dhaka"], ["Bangkok", "Asia/Bangkok"], ["Singapore", "Asia/Singapore"], ["Hong Kong", "Asia/Hong_Kong"],
-    ["Beijing", "Asia/Shanghai"], ["Seoul", "Asia/Seoul"], ["Auckland", "Pacific/Auckland"], ["Honolulu", "Pacific/Honolulu"],
-    ["Anchorage", "America/Anchorage"], ["Vancouver", "America/Vancouver"], ["Denver", "America/Denver"],
-    ["Chicago", "America/Chicago"], ["Mexico City", "America/Mexico_City"], ["Toronto", "America/Toronto"],
-    ["Bogotá", "America/Bogota"], ["Lima", "America/Lima"], ["Santiago", "America/Santiago"],
-    ["São Paulo", "America/Sao_Paulo"], ["Buenos Aires", "America/Argentina/Buenos_Aires"], ["Reykjavík", "Atlantic/Reykjavik"],
-  ];
-  const DEFAULTS = ["Istanbul", "London", "New York", "Los Angeles", "Tokyo", "Sydney", "Dubai", "Berlin"];
+  const LEGACY = {
+    "Europe/Kyiv": "Europe/Kiev", "America/Nuuk": "America/Godthab", "Asia/Yangon": "Asia/Rangoon",
+    "Asia/Kolkata": "Asia/Calcutta", "Asia/Ho_Chi_Minh": "Asia/Saigon", "Asia/Kathmandu": "Asia/Katmandu",
+  };
+  function validZone(z) {
+    for (const cand of [z, LEGACY[z]]) {
+      if (!cand) continue;
+      try { new Intl.DateTimeFormat("en", { timeZone: cand }); return cand; } catch (e) {}
+    }
+    return null;
+  }
+  const canonCache = {};
+  function canon(z) {
+    if (!(z in canonCache)) {
+      try { canonCache[z] = new Intl.DateTimeFormat("en", { timeZone: z }).resolvedOptions().timeZone; } catch (e) { canonCache[z] = z; }
+    }
+    return canonCache[z];
+  }
+  // Lowercase and strip accents so "istanbul" finds "İstanbul" and "sao paulo" finds "São Paulo".
+  const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").toLowerCase();
+
+  // Every city: the bundled list, then each IANA zone city not already in it.
+  const CITIES = [];
+  const seen = new Set();
+  for (const line of CITY_DATA.trim().split("\n")) {
+    const [country, rawZone, names] = line.split("|");
+    const zone = validZone(rawZone);
+    if (!zone) continue;
+    for (const name of names.split(",").map(n => n.trim())) {
+      CITIES.push({ name, country, zone });
+      seen.add(norm(name));
+    }
+  }
+  const zoneList = (Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : []);
+  for (const zone of zoneList) {
+    const parts = zone.split("/");
+    if (parts.length < 2 || parts[0] === "Etc") continue;
+    const name = parts[parts.length - 1].replace(/_/g, " ");
+    if (seen.has(norm(name))) continue;
+    seen.add(norm(name));
+    CITIES.push({ name, country: parts[0], zone });
+  }
+  CITIES.push({ name: "UTC", country: "Coordinated Universal Time", zone: "UTC" });
+  for (const c of CITIES) { c.key = c.name + "|" + c.zone; c.n = norm(c.name); c.nc = norm(c.country); }
+  CITIES.sort((a, b) => a.name.localeCompare(b.name));
+  const byKey = new Map(CITIES.map(c => [c.key, c]));
+  const byName = new Map();
+  for (const c of CITIES) if (!byName.has(c.name)) byName.set(c.name, c);
+
+  const DEFAULTS = ["Istanbul", "London", "New York", "Los Angeles", "Tokyo", "Sydney", "Dubai", "Berlin"]
+    .map(n => byName.get(n).key);
   const KEY = "world-time-zones";
-  const zoneOf = Object.fromEntries(CITIES);
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Saved choices are a convenience; the page works without storage.
+  // Saved choices are a convenience; the page works without storage. Older saves stored plain city names.
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && Array.isArray(s.cities)) return { cities: s.cities.filter(c => zoneOf[c]), h12: !!s.h12 };
+      if (s && Array.isArray(s.cities)) {
+        const keys = s.cities.map(k => byKey.has(k) ? k : byName.get(k)?.key).filter(Boolean);
+        return { cities: [...new Set(keys)], h12: !!s.h12 };
+      }
     } catch (e) {}
     return { cities: DEFAULTS.slice(), h12: false };
   }
@@ -216,43 +281,136 @@
   const picker = document.getElementById("picker");
   let cards = [];
 
-  function renderPicker() {
-    picker.textContent = "";
-    const left = CITIES.filter(([n]) => !state.cities.includes(n)).sort((a, b) => a[0].localeCompare(b[0]));
-    for (const [n] of left) {
-      const o = document.createElement("option");
-      o.value = n; o.textContent = n;
-      picker.appendChild(o);
+  const optionsEl = document.getElementById("options");
+  let matches = [], active = 0;
+
+  function search(q) {
+    const nq = norm(q.trim());
+    const pool = CITIES.filter(c => !state.cities.includes(c.key));
+    if (!nq) return pool;
+    const ranked = [];
+    for (const c of pool) {
+      let r;
+      if (c.n.startsWith(nq)) r = 0;
+      else if (c.n.split(/[\s-]/).some(w => w.startsWith(nq))) r = 1;
+      else if (c.n.includes(nq)) r = 2;
+      else if (c.nc.startsWith(nq)) r = 3;
+      else if (c.nc.includes(nq) || norm(c.zone).includes(nq)) r = 4;
+      else continue;
+      ranked.push([r, c]);
     }
-    picker.disabled = document.getElementById("add").disabled = left.length === 0;
+    ranked.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));
+    return ranked.map(x => x[1]);
   }
+
+  function highlight(span, name, q) {
+    const nq = norm(q.trim()), i = nq ? norm(name).indexOf(nq) : -1;
+    // norm() keeps string length for these scripts, so the index maps back to the original name.
+    if (i < 0 || norm(name).length !== name.length) { span.textContent = name; return; }
+    span.append(name.slice(0, i));
+    const m = document.createElement("mark");
+    m.textContent = name.slice(i, i + nq.length);
+    span.append(m, name.slice(i + nq.length));
+  }
+
+  function openList() {
+    const now = new Date();
+    matches = search(picker.value);
+    active = 0;
+    optionsEl.textContent = "";
+    if (!matches.length) {
+      const li = document.createElement("li");
+      li.className = "o-none";
+      li.textContent = "No city matches that.";
+      optionsEl.appendChild(li);
+    }
+    matches.forEach((c, i) => {
+      const li = document.createElement("li");
+      li.id = "opt-" + i;
+      li.setAttribute("role", "option");
+      const name = document.createElement("span");
+      name.className = "o-name";
+      highlight(name, c.name, picker.value);
+      const off = document.createElement("span");
+      off.className = "o-off";
+      off.textContent = fmtOffset(offsetMinutes(c.zone, now));
+      const where = document.createElement("span");
+      where.className = "o-where";
+      where.textContent = c.country;
+      li.append(name, off, where);
+      li.addEventListener("mousedown", (e) => { e.preventDefault(); addCity(c); });
+      li.addEventListener("mousemove", () => { if (active !== i) setActive(i); });
+      optionsEl.appendChild(li);
+    });
+    optionsEl.hidden = false;
+    picker.setAttribute("aria-expanded", "true");
+    setActive(0);
+  }
+  function closeList() {
+    optionsEl.hidden = true;
+    picker.setAttribute("aria-expanded", "false");
+    picker.removeAttribute("aria-activedescendant");
+  }
+  function setActive(i) {
+    if (!matches.length) return;
+    optionsEl.querySelector(`[aria-selected="true"]`)?.setAttribute("aria-selected", "false");
+    active = (i + matches.length) % matches.length;
+    const li = document.getElementById("opt-" + active);
+    li.setAttribute("aria-selected", "true");
+    li.scrollIntoView({ block: "nearest" });
+    picker.setAttribute("aria-activedescendant", li.id);
+  }
+  function addCity(c) {
+    if (!c || state.cities.includes(c.key)) return;
+    state.cities.push(c.key);
+    picker.value = "";
+    closeList();
+    save(); render();
+    picker.focus();
+  }
+
+  picker.addEventListener("input", openList);
+  picker.addEventListener("focus", openList);
+  picker.addEventListener("blur", closeList);
+  picker.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (optionsEl.hidden) openList(); else setActive(active + (e.key === "ArrowDown" ? 1 : -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (!optionsEl.hidden) addCity(matches[active]);
+    } else if (e.key === "Escape") {
+      closeList();
+    }
+  });
 
   function render() {
     grid.textContent = "";
-    cards = state.cities.map(name => {
+    cards = state.cities.map(key => {
+      const { name, country, zone } = byKey.get(key);
       const li = document.createElement("li");
       li.className = "card";
       const clock = makeClock();
       li.appendChild(clock.svg);
       const d = document.createElement("div");
       d.className = "digital";
-      d.innerHTML = `<span class="city"></span><span class="time"></span><span class="date"></span><span class="offset"></span>`;
+      d.innerHTML = `<span class="city"></span><span class="country"></span><span class="time"></span><span class="date"></span><span class="offset"></span>`;
       d.querySelector(".city").textContent = name;
+      d.querySelector(".country").textContent = country;
       li.appendChild(d);
       const rm = document.createElement("button");
       rm.className = "remove";
       rm.textContent = "×";
       rm.setAttribute("aria-label", `Remove ${name}`);
       rm.addEventListener("click", () => {
-        state.cities = state.cities.filter(c => c !== name);
+        state.cities = state.cities.filter(k => k !== key);
         save(); render();
       });
       li.appendChild(rm);
       grid.appendChild(li);
-      return { name, zone: zoneOf[name], li, clock, time: d.querySelector(".time"), date: d.querySelector(".date"), offset: d.querySelector(".offset") };
+      return { zone, li, clock, time: d.querySelector(".time"), date: d.querySelector(".date"), offset: d.querySelector(".offset") };
     });
     document.getElementById("empty").hidden = cards.length > 0;
-    renderPicker();
     tick();
   }
 
@@ -279,14 +437,14 @@
       c.date.textContent = new Intl.DateTimeFormat("en-GB", { timeZone: c.zone, weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now);
       const off = offsetMinutes(c.zone, now);
       c.offset.textContent = `${fmtOffset(off)} · ${fmtDiff(off - myOff)}`;
-      c.li.classList.toggle("here", c.zone === localZone);
+      c.li.classList.toggle("here", canon(c.zone) === canon(localZone));
     }
   }
 
   document.getElementById("add").addEventListener("click", () => {
-    if (!picker.value) return;
-    state.cities.push(picker.value);
-    save(); render();
+    const found = search(picker.value);
+    if (picker.value.trim() && found.length) addCity(found[optionsEl.hidden ? 0 : active] || found[0]);
+    else picker.focus();
   });
   document.getElementById("reset").addEventListener("click", () => {
     state.cities = DEFAULTS.slice();
