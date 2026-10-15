@@ -134,6 +134,10 @@
   .sugg .s { display: block; font-size: .78rem; color: var(--muted); }
   .sugg .note { display: block; padding: .5rem; font-size: .85rem; color: var(--muted); cursor: default; grid-template-columns: 1fr; }
   .sugg .note:hover { background: none; }
+  .dup { margin: -.3rem 0 0; padding: .55rem .7rem; border-radius: 6px; background: var(--plan-soft); color: var(--fg); font-size: .88rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .sugg .inlist { color: var(--watched); font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; margin-left: .35rem; }
+  .item.flash { animation: flash 1.6s ease; }
+  @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
   .poster-pick { display: flex; gap: .75rem; align-items: center; }
   .poster-pick img { width: 4rem; height: 5.8rem; object-fit: cover; border-radius: 6px; background: var(--line); }
   .poster-pick .info { display: grid; gap: .3rem; justify-items: start; font-size: .85rem; color: var(--muted); }
@@ -185,6 +189,7 @@
           <input id="f-title" required maxlength="200" placeholder="Start typing to search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
           <ul class="sugg" id="sugg" role="listbox" hidden></ul>
         </div>
+        <p class="dup" id="f-dup" role="alert" hidden><span></span> <button class="btn small" type="button" id="f-dup-open">Open it</button></p>
         <div class="poster-pick" id="f-poster-box" hidden>
           <img id="f-poster" alt="" referrerpolicy="no-referrer">
           <div class="info">
@@ -362,6 +367,7 @@
     setPoster("", "", "");
     setFav(false);
     closeSugg();
+    hideDup();
     $("form-title").textContent = "Add a title";
     $("f-submit").textContent = "Add";
     $("f-cancel").hidden = true;
@@ -409,6 +415,8 @@
       fav: formFav,
     });
     if (!data) return;
+    const dup = findDuplicate(data, editingId);
+    if (dup) { showDup(dup); return; }
     if (editingId) {
       const i = items.findIndex(x => x.id === editingId);
       if (i >= 0) { data.added = items[i].added; items[i] = data; }
@@ -422,6 +430,33 @@
     render();
   });
   $("f-cancel").addEventListener("click", resetForm);
+
+  // Duplicates: the same IMDb title, or (when either has no IMDb id) the same name, type and year.
+  function norm(t) { return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim(); }
+  function findDuplicate(d, exceptId) {
+    return items.find(i => {
+      if (i.id === exceptId) return false;
+      if (i.imdb && d.imdb) return i.imdb === d.imdb;
+      return norm(i.title) === norm(d.title) && i.type === d.type && (!i.year || !d.year || i.year === d.year);
+    });
+  }
+  let dupId = null;
+  function showDup(it) {
+    dupId = it.id;
+    const box = $("f-dup");
+    box.firstElementChild.textContent = `“${it.title}”${it.year ? ` (${it.year})` : ""} is already in your list.`;
+    box.hidden = false;
+  }
+  function hideDup() { dupId = null; $("f-dup").hidden = true; }
+  $("f-dup-open").addEventListener("click", () => {
+    const id = dupId;
+    hideDup();
+    // Clear filters so the existing entry is visible, then point at it.
+    typeFilter = "all"; statusFilter = "all"; $("q").value = ""; render();
+    const li = document.querySelector(`.item[data-id="${CSS.escape(id)}"]`);
+    if (li) { li.classList.remove("flash"); void li.offsetWidth; li.classList.add("flash"); }
+    editItem(id);
+  });
 
   function setFav(on) {
     formFav = !!on;
@@ -549,6 +584,9 @@
       } else { pic = document.createElement("span"); pic.className = "noimg"; }
       const txt = document.createElement("span");
       const t = document.createElement("span"); t.className = "t"; t.textContent = d.title;
+      if (findDuplicate({ title: d.title, type: d.series ? "series" : "movie", year: d.year, imdb: d.imdb }, editingId)) {
+        const tag = document.createElement("span"); tag.className = "inlist"; tag.textContent = "In your list"; t.appendChild(tag);
+      }
       const sub = document.createElement("span"); sub.className = "s";
       sub.textContent = d.sub;
       txt.append(t, sub);
@@ -579,6 +617,7 @@
 
   titleIn.addEventListener("input", () => {
     clearTimeout(searchTimer);
+    hideDup();
     const q = titleIn.value.trim();
     if (q.length < 2) { searchSeq++; closeSugg(); return; }
     searchTimer = setTimeout(() => searchImdb(q), 250);
@@ -694,6 +733,7 @@
     const li = document.createElement("li");
     li.className = "item";
     li.dataset.status = it.status;
+    li.dataset.id = it.id;
     if (it.poster) {
       li.classList.add("has-poster");
       const img = document.createElement("img");
