@@ -41,7 +41,7 @@
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
   .wrap {
-    max-width: 72rem; margin: 0 auto; padding-block: 2rem 4rem;
+    max-width: 112rem; margin: 0 auto; padding-block: 2rem 4rem;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     display: grid; gap: 1.5rem;
@@ -58,8 +58,19 @@
   .stat b { font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .stat span { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  .layout { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 90rem) { .layout { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } .table-panel { grid-column: 1 / -1; } }
   @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+
+  /* All titles table, far right */
+  .table-panel .bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; }
+  .table-wrap { overflow-x: auto; }
+  table.titles { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .titles th { text-align: left; font-family: var(--mono); font-weight: 500; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: .4rem .5rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .titles td { padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  .titles td:nth-child(2) { font-family: var(--mono); font-size: .8rem; white-space: nowrap; }
+  .titles td:nth-child(3) { color: var(--muted); }
+  .titles .kind { display: block; font-family: var(--mono); font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; display: grid; gap: 1rem; }
 
   form { display: grid; gap: .85rem; }
@@ -225,6 +236,9 @@
             <input id="f-episode" type="number" inputmode="numeric" min="0" max="9999" placeholder="1">
           </label>
         </div>
+        <label>Release date
+          <input id="f-released" maxlength="10" placeholder="YYYY-MM-DD (filled in for IMDb titles)" pattern="\d{4}(-\d{2}(-\d{2})?)?">
+        </label>
         <label>Genre
           <input id="f-genre" maxlength="80" placeholder="e.g. Comedy, Drama">
         </label>
@@ -266,6 +280,23 @@
         <input type="file" id="import-file" accept="application/json,.json" hidden>
         <span>Saved in this browser. Export to back up or move to another device.</span>
       </div>
+    </section>
+
+    <section class="panel table-panel" aria-labelledby="table-title">
+      <div class="bar">
+        <h2 id="table-title">All titles</h2>
+        <div class="btns">
+          <button class="btn small" type="button" id="dl-xlsx">Download Excel</button>
+          <button class="btn small" type="button" id="dl-pdf">Download PDF</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="titles">
+          <thead><tr><th scope="col">Title</th><th scope="col">Release date</th><th scope="col">Actors</th></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="table-empty" hidden>Titles you add show up here.</p>
     </section>
   </div>
 </div>
@@ -316,6 +347,7 @@
       season: num(x.season, 1, 999),
       episode: num(x.episode, 0, 9999),
       genre: String(x.genre || "").slice(0, 80),
+      released: /^\d{4}(-\d{2}(-\d{2})?)?$/.test(x.released || "") ? x.released : "",
       rating: num(x.rating, 1, 5),
       notes: String(x.notes || "").slice(0, 2000),
       poster: /^https:\/\/[^\s"']+$/.test(x.poster || "") ? String(x.poster).slice(0, 500) : "",
@@ -384,6 +416,7 @@
     $("f-season").value = it.season ?? "";
     $("f-episode").value = it.episode ?? "";
     $("f-genre").value = it.genre;
+    $("f-released").value = it.released;
     $("f-notes").value = it.notes;
     formRating = it.rating || 0;
     drawStars();
@@ -407,6 +440,7 @@
       season: formType === "series" ? $("f-season").value : null,
       episode: formType === "series" ? $("f-episode").value : null,
       genre: $("f-genre").value.trim(),
+      released: $("f-released").value.trim(),
       rating: formRating,
       notes: $("f-notes").value.trim(),
       poster: formPoster,
@@ -428,6 +462,7 @@
     save();
     resetForm();
     render();
+    fillReleaseDates();
   });
   $("f-cancel").addEventListener("click", resetForm);
 
@@ -611,6 +646,8 @@
     if (d.year) $("f-year").value = d.year;
     setType(d.series ? "series" : "movie");
     setPoster(d.img, d.imdb, d.cast);
+    $("f-released").value = "";
+    if (d.imdb) releaseDates([d.imdb]).then(m => { if (formImdb === d.imdb && !$("f-released").value && m[d.imdb]) $("f-released").value = m[d.imdb]; }).catch(() => {});
     searchSeq++;
     closeSugg();
   }
@@ -662,6 +699,7 @@
     });
 
     renderFavs();
+    renderTable();
 
     // Filters, with counts that respect the other filter
     const tc = { all: 0, movie: 0, series: 0 }, sc = { all: 0, plan: 0, watching: 0, watched: 0, fav: 0 };
@@ -849,8 +887,143 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
   }
 
+  // ----- All titles table and downloads -----
+  function tableRows() {
+    return [...items].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }))
+      .map(it => ({ it, title: it.title, released: it.released || (it.year ? String(it.year) : ""), actors: it.cast }));
+  }
+  function renderTable() {
+    const body = $("table-body");
+    body.textContent = "";
+    const rows = tableRows();
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      const t = document.createElement("td"); t.textContent = r.title;
+      const k = document.createElement("span"); k.className = "kind"; k.textContent = TYPE[r.it.type]; t.appendChild(k);
+      const d = document.createElement("td"); d.textContent = r.released || "–";
+      const a = document.createElement("td"); a.textContent = r.actors || "–";
+      tr.append(t, d, a);
+      body.appendChild(tr);
+    });
+    $("table-empty").hidden = rows.length > 0;
+    $("dl-xlsx").disabled = $("dl-pdf").disabled = !rows.length;
+  }
+
+  // Release dates come from Wikidata, matched by IMDb id (keyless, and it allows calls from any site).
+  // Earliest publication date (films) or start date (series); partial dates keep only what is known.
+  async function releaseDates(ids) {
+    const out = {};
+    for (let i = 0; i < ids.length; i += 50) {
+      const values = ids.slice(i, i + 50).map(id => `"${id}"`).join(" ");
+      const query = `SELECT ?imdb ?d ?p WHERE { VALUES ?imdb { ${values} } ?item wdt:P345 ?imdb .
+        { ?item p:P577/psv:P577 ?v } UNION { ?item p:P580/psv:P580 ?v } ?v wikibase:timeValue ?d ; wikibase:timePrecision ?p . }`;
+      const res = await fetch("https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(query), { headers: { Accept: "application/sparql-results+json" } });
+      if (!res.ok) throw new Error(res.status);
+      const best = {};
+      for (const b of (await res.json()).results.bindings) {
+        const id = b.imdb.value, date = b.d.value.slice(0, 10), prec = +b.p.value;
+        if (prec < 9 || date.startsWith("-")) continue;
+        if (!best[id] || date < best[id].date) best[id] = { date, prec };
+      }
+      for (const [id, { date, prec }] of Object.entries(best)) out[id] = prec >= 11 ? date : prec === 10 ? date.slice(0, 7) : date.slice(0, 4);
+    }
+    return out;
+  }
+  let filling = false;
+  async function fillReleaseDates() {
+    const need = items.filter(i => i.imdb && !i.released);
+    if (filling || !need.length) return;
+    filling = true;
+    try {
+      const found = await releaseDates([...new Set(need.map(i => i.imdb))]);
+      let changed = false;
+      items.forEach(i => { if (i.imdb && !i.released && found[i.imdb]) { i.released = found[i.imdb]; changed = true; } });
+      if (changed) { save(); render(); }
+    } catch {} finally { filling = false; }
+  }
+
+  // Libraries load only when a download button is first used. Exact versions, so a cached copy is always the right one.
+  const libs = {};
+  function loadScript(src) {
+    return libs[src] ||= new Promise((resolve, reject) => {
+      const tag = document.createElement("script");
+      tag.src = src; tag.onload = resolve;
+      tag.onerror = () => { delete libs[src]; tag.remove(); reject(new Error("load failed")); };
+      document.head.appendChild(tag);
+    });
+  }
+  const CDN = "https://cdn.jsdelivr.net/npm/";
+  function fileName(ext) { return `movies-and-series-${new Date().toISOString().slice(0, 10)}.${ext}`; }
+
+  async function busy(btn, fn) {
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Preparing…";
+    try { await fn(); }
+    catch { toast("Couldn't make the file. Check your connection and try again."); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  }
+
+  $("dl-xlsx").addEventListener("click", e => busy(e.currentTarget, async () => {
+    await loadScript(CDN + "xlsx@0.18.5/dist/xlsx.full.min.js");
+    const rows = tableRows().map(r => ({ "Title": r.title, "Type": TYPE[r.it.type], "Release date": r.released, "Actors": r.actors }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ["Title", "Type", "Release date", "Actors"] });
+    ws["!cols"] = [{ wch: 40 }, { wch: 8 }, { wch: 14 }, { wch: 50 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Movies and Series");
+    XLSX.writeFile(wb, fileName("xlsx"));
+  }));
+
+  let pdfFont;
+  async function loadPdfFont() {
+    // DejaVu covers Turkish and other accented letters that the built-in PDF fonts lack.
+    if (pdfFont === undefined) {
+      try {
+        const res = await fetch(CDN + "dejavu-fonts-ttf@2.37.3/ttf/DejaVuSansCondensed.ttf");
+        if (!res.ok) throw new Error(res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        pdfFont = btoa(bin);
+      } catch { pdfFont = null; }
+    }
+    return pdfFont;
+  }
+  $("dl-pdf").addEventListener("click", e => busy(e.currentTarget, async () => {
+    await loadScript(CDN + "jspdf@2.5.1/dist/jspdf.umd.min.js");
+    await loadScript(CDN + "jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js");
+    const font = await loadPdfFont();
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+    let family = "helvetica";
+    if (font) {
+      doc.addFileToVFS("DejaVuSansCondensed.ttf", font);
+      doc.addFont("DejaVuSansCondensed.ttf", "DejaVu", "normal");
+      doc.addFont("DejaVuSansCondensed.ttf", "DejaVu", "bold");
+      family = "DejaVu";
+    }
+    // Without the font, drop accents so nothing turns into garbage characters.
+    const txt = v => font ? v : String(v).replace(/ı/g, "i").replace(/İ/g, "I").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    doc.setFont(family, "normal");
+    doc.setFontSize(16);
+    doc.text("Movies and Series", 40, 48);
+    doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.text(`${items.length} titles · ${new Date().toLocaleDateString()}`, 40, 64);
+    doc.autoTable({
+      startY: 78,
+      head: [["Title", "Type", "Release date", "Actors"]],
+      body: tableRows().map(r => [txt(r.title), TYPE[r.it.type], r.released, txt(r.actors)]),
+      styles: { font: family, fontSize: 9, cellPadding: 5, overflow: "linebreak" },
+      headStyles: { fillColor: [43, 79, 216], textColor: 255, fontStyle: "normal" },
+      alternateRowStyles: { fillColor: [244, 246, 249] },
+      columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 50 }, 2: { cellWidth: 75 } },
+      margin: { left: 40, right: 40 },
+    });
+    doc.save(fileName("pdf"));
+  }));
+
   resetForm();
   render();
+  fillReleaseDates();
 </script>
 </body>
 </html>
