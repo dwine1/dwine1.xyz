@@ -507,7 +507,7 @@
     slotsEl.appendChild(li);
     const input = li.querySelector("input"), rm = li.querySelector("button"), body = li.querySelector(".slot-body");
     makePicker(input, li.querySelector("ul"), {
-      exclude: () => state.slots.filter((k, j) => k && j !== i),
+      exclude: () => [],
       // While the box still shows the chosen city's name, list every city.
       query: () => (state.slots[i] && input.value === byKey.get(state.slots[i]).name) ? "" : input.value,
       onPick: (c) => { state.slots[i] = c.key; save(); renderSlots(); input.blur(); },
@@ -572,8 +572,8 @@
     const t = Math.abs(d), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
     const pad = (n) => String(n).padStart(2, "0");
     hms.innerHTML = `${d < 0 ? "−" : ""}${pad(h)}:${pad(m)}:${pad(sec)}` + label;
-    text.textContent = a.key === b.key || d === 0
-      ? `${b.name} and ${a.name} show the same time.`
+    text.textContent = a.key === b.key ? `Both clocks show ${a.name}, so there is no difference.`
+      : d === 0 ? `${b.name} and ${a.name} show the same time.`
       : `${b.name} is ${h}h ${pad(m)}m ${pad(sec)}s ${d > 0 ? "ahead of" : "behind"} ${a.name}.`;
   }
   function wall(zone, now) {
