@@ -465,16 +465,32 @@
     suggBox.appendChild(li); suggBox.hidden = false;
   }
 
+  // IMDb's suggestion service doesn't allow fetch() from other sites, so it is loaded as a script (JSONP):
+  // the file calls window["imdb$<key>"](data), where <key> is the query as it appears in the URL.
+  function imdbJsonp(key) {
+    return new Promise((resolve, reject) => {
+      const cb = "imdb$" + key;
+      const tag = document.createElement("script");
+      const done = (fn, v) => { clearTimeout(timer); delete window[cb]; tag.remove(); fn(v); };
+      const timer = setTimeout(() => done(reject, new Error("timeout")), 8000);
+      window[cb] = data => done(resolve, data);
+      tag.onerror = () => done(reject, new Error("load failed"));
+      tag.src = `https://sg.media-imdb.com/suggests/${key[0]}/${encodeURIComponent(key)}.json`;
+      document.head.appendChild(tag);
+    });
+  }
+
   async function searchImdb(q) {
     const seq = ++searchSeq;
-    const key = q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const first = (key.match(/[a-z0-9]/) || ["x"])[0];
+    const key = q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9 ]+/g, " ").trim().replace(/\s+/g, "_").slice(0, 60);
+    if (!key) { closeSugg(); return; }
     try {
-      const res = await fetch(`https://v3.sg.media-imdb.com/suggestion/${first}/${encodeURIComponent(key)}.json`);
-      if (!res.ok) throw new Error(res.status);
-      const data = await res.json();
+      const data = await imdbJsonp(key);
       if (seq !== searchSeq || titleIn.value.trim() !== q) return;
-      sugg = (data.d || []).filter(d => /^tt/.test(d.id) && KINDS[d.qid]).slice(0, 8);
+      sugg = (data.d || []).filter(d => /^tt/.test(d.id) && KINDS[d.qid]).slice(0, 8).map(d => ({
+        ...d, img: Array.isArray(d.i) ? d.i[0] : d.i && d.i.imageUrl,
+      }));
       drawSugg();
     } catch {
       if (seq === searchSeq) suggNote("IMDb search isn't reachable right now. You can still type the title yourself.");
@@ -488,8 +504,8 @@
       const li = document.createElement("li");
       li.id = "sugg-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", "false");
       let pic;
-      if (d.i && d.i.imageUrl) {
-        pic = document.createElement("img"); pic.src = sized(d.i.imageUrl, 80); pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer";
+      if (d.img) {
+        pic = document.createElement("img"); pic.src = sized(d.img, 80); pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer";
       } else { pic = document.createElement("span"); pic.className = "noimg"; }
       const txt = document.createElement("span");
       const t = document.createElement("span"); t.className = "t"; t.textContent = d.l;
@@ -516,7 +532,7 @@
     titleIn.value = d.l;
     if (d.y) $("f-year").value = d.y;
     setType(SERIES.has(d.qid) ? "series" : "movie");
-    setPoster(d.i && d.i.imageUrl ? sized(d.i.imageUrl, 300) : "", d.id, d.s || "");
+    setPoster(sized(d.img, 300), d.id, d.s || "");
     searchSeq++;
     closeSugg();
   }
