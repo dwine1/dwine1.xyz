@@ -35,7 +35,7 @@
 
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
   .wrap {
-    max-width: 84rem; margin: 0 auto; padding-block: 2rem 4rem;
+    max-width: 104rem; margin: 0 auto; padding-block: 2rem 4rem;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     display: grid; gap: 1.75rem;
@@ -88,7 +88,7 @@
   .seg button { border: 0; border-radius: 0; }
   .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 30rem; gap: 2rem; align-items: start; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 30rem 16rem; gap: 2rem; align-items: start; }
   .main { display: grid; gap: 1.5rem; min-width: 0; }
   .panel { display: grid; gap: 1rem; border-left: 1px solid var(--line); padding-left: 2rem; }
   .panel h2 { font-family: var(--mono); font-weight: 500; font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; margin: 0; color: var(--muted); }
@@ -118,6 +118,27 @@
   .slot-empty {
     border: 1px dashed var(--line); border-radius: 12px; padding: 1.5rem 1rem; text-align: center;
     color: var(--muted); font-size: .9rem;
+  }
+  .us { display: grid; gap: 1rem; border-left: 1px solid var(--line); padding-left: 2rem; align-content: start; }
+  .us h2 { font-family: var(--mono); font-weight: 500; font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; margin: 0; color: var(--muted); }
+  .us-groups { display: grid; gap: .75rem; }
+  .us-group { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .7rem .85rem .8rem; break-inside: avoid; }
+  .us-group summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 0 .5rem; align-items: baseline; }
+  .us-group summary::-webkit-details-marker { display: none; }
+  .us-group summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .us-zone { font-family: var(--display); font-weight: 500; font-size: 1rem; }
+  .us-time { font-family: var(--mono); font-weight: 500; font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .us-meta { grid-column: 1 / -1; font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+  .us-meta::after { content: " ▾"; }
+  .us-group:not([open]) .us-meta::after { content: " ▸"; }
+  .us-cities { margin: .55rem 0 0; padding: .55rem 0 0; border-top: 1px solid var(--line); font-size: .78rem; line-height: 1.7; color: var(--muted); }
+  .us-cities span { white-space: nowrap; }
+  .us-cities span:not(:last-child)::after { content: "·"; margin-left: .4rem; opacity: .6; }
+  @media (max-width: 96rem) {
+    .layout { grid-template-columns: minmax(0, 1fr) 30rem; }
+    .us { grid-column: 1 / -1; border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+    .us-groups { display: block; columns: 16rem 3; column-gap: .75rem; }
+    .us-group { margin-bottom: .75rem; }
   }
   @media (max-width: 68rem) {
     .layout { grid-template-columns: 1fr; }
@@ -195,6 +216,11 @@
     <h2 id="slotsTitle">Compare 4 cities</h2>
     <ul class="slots" id="slots"></ul>
     <div class="diffs" id="diffs"></div>
+  </aside>
+
+  <aside class="us" aria-labelledby="usTitle">
+    <h2 id="usTitle">United States</h2>
+    <div class="us-groups" id="usGroups"></div>
   </aside>
   </div>
 </div>
@@ -588,6 +614,44 @@
         : `${b.name} is ${h}h ${pad(m)}m ${pad(sec)}s ${d > 0 ? "ahead of" : "behind"} ${a.name}.`;
     });
   }
+  // United States column: every US city in the list, grouped by time zone.
+  const US_ZONES = [
+    ["Eastern", ["America/New_York", "America/Detroit", "America/Indiana/Indianapolis", "America/Kentucky/Louisville"]],
+    ["Central", ["America/Chicago"]],
+    ["Mountain", ["America/Denver", "America/Boise"]],
+    ["Arizona", ["America/Phoenix"]],
+    ["Pacific", ["America/Los_Angeles"]],
+    ["Alaska", ["America/Anchorage"]],
+    ["Hawaii", ["Pacific/Honolulu"]],
+  ];
+  const usViews = US_ZONES.map(([label, zones]) => {
+    const names = CITIES.filter(c => c.country === "United States" && zones.includes(c.zone)).map(c => c.name);
+    const det = document.createElement("details");
+    det.className = "us-group";
+    det.open = true;
+    det.innerHTML = `<summary><span class="us-zone"></span><span class="us-time"></span><span class="us-meta"></span></summary><p class="us-cities"></p>`;
+    det.querySelector(".us-zone").textContent = label;
+    const list = det.querySelector(".us-cities");
+    for (const n of [...new Set(names)].sort((a, b) => a.localeCompare(b))) {
+      const sp = document.createElement("span");
+      sp.textContent = n;
+      if (list.children.length) list.append(" ");  // a break point between names
+      list.appendChild(sp);
+    }
+    document.getElementById("usGroups").appendChild(det);
+    return { zone: zones[0], count: list.children.length, time: det.querySelector(".us-time"), meta: det.querySelector(".us-meta") };
+  });
+  function updateUS(now) {
+    for (const v of usViews) {
+      const p = partsIn(v.zone, now);
+      const hh = state.h12 ? ((p.hour + 11) % 12) + 1 : p.hour;
+      const night = p.hour < 6 || p.hour >= 19;
+      v.time.textContent = `${String(hh).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}${state.h12 ? (p.hour < 12 ? " AM" : " PM") : ""} ${night ? "🌙" : "☀️"}`;
+      const abbr = new Intl.DateTimeFormat("en-US", { timeZone: v.zone, timeZoneName: "short" }).formatToParts(now).find(x => x.type === "timeZoneName").value;
+      v.meta.textContent = `${abbr} · ${fmtOffset(offsetMinutes(v.zone, now))} · ${v.count} ${v.count === 1 ? "city" : "cities"}`;
+    }
+  }
+
   function wall(zone, now) {
     const p = partsIn(zone, now);
     return [p.year, p.month - 1, p.day, p.hour, p.minute, p.second];
@@ -622,6 +686,7 @@
       c.li.classList.toggle("here", canon(c.zone) === canon(localZone));
     }
     updateDiff(now);
+    updateUS(now);
   }
 
   document.getElementById("add").addEventListener("click", () => {

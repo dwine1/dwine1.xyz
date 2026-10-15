@@ -169,16 +169,17 @@ Canada|America/Regina|Regina, Saskatoon
 Canada|America/Edmonton|Calgary, Edmonton
 Canada|America/Vancouver|Vancouver, Victoria
 Canada|America/Whitehorse|Whitehorse
-United States|America/New_York|New York, Washington DC, Boston, Philadelphia, Miami, Atlanta, Orlando, Charlotte, Pittsburgh, Baltimore, Tampa, Raleigh, Richmond, Buffalo
-United States|America/Detroit|Detroit
-United States|America/Indiana/Indianapolis|Indianapolis
+United States|America/New_York|New York, Washington DC, Boston, Philadelphia, Miami, Atlanta, Orlando, Charlotte, Pittsburgh, Baltimore, Tampa, Raleigh, Richmond, Buffalo, Jacksonville, Columbus, Cleveland, Cincinnati, Virginia Beach, Norfolk, Newark, Jersey City, Providence, Hartford, New Haven, Albany, Rochester, Syracuse, Charleston, Columbia, Savannah, Greensboro, Durham, Fort Lauderdale, West Palm Beach, Tallahassee, Annapolis, Dover, Wilmington, Trenton, Augusta, Concord, Montpelier, Burlington, Lexington, Frankfort, Knoxville, Chattanooga, Harrisburg, Key West
+United States|America/Detroit|Detroit, Grand Rapids, Lansing, Ann Arbor
+United States|America/Indiana/Indianapolis|Indianapolis, Fort Wayne
 United States|America/Kentucky/Louisville|Louisville
-United States|America/Chicago|Chicago, Houston, Dallas, San Antonio, Austin, Nashville, New Orleans, Minneapolis, Kansas City, St. Louis, Memphis, Milwaukee, Oklahoma City
-United States|America/Denver|Denver, Salt Lake City, Albuquerque, Boise
-United States|America/Phoenix|Phoenix, Tucson
-United States|America/Los_Angeles|Los Angeles, San Francisco, San Diego, Seattle, Las Vegas, Portland, San Jose, Sacramento
-United States|America/Anchorage|Anchorage, Juneau
-United States|Pacific/Honolulu|Honolulu
+United States|America/Chicago|Chicago, Houston, Dallas, San Antonio, Austin, Nashville, New Orleans, Minneapolis, Saint Paul, Kansas City, St. Louis, Memphis, Milwaukee, Madison, Green Bay, Oklahoma City, Tulsa, Fort Worth, Corpus Christi, Lubbock, Omaha, Lincoln, Des Moines, Little Rock, Jackson, Birmingham, Montgomery, Mobile, Huntsville, Baton Rouge, Shreveport, Wichita, Topeka, Springfield, Sioux Falls, Pierre, Fargo, Bismarck
+United States|America/Denver|Denver, Colorado Springs, Salt Lake City, Albuquerque, Santa Fe, Las Cruces, El Paso, Cheyenne, Helena, Billings
+United States|America/Boise|Boise
+United States|America/Phoenix|Phoenix, Tucson, Mesa, Scottsdale, Tempe, Flagstaff
+United States|America/Los_Angeles|Los Angeles, San Francisco, San Diego, San Jose, Sacramento, Oakland, Fresno, Long Beach, Bakersfield, Anaheim, Santa Barbara, Palm Springs, Seattle, Tacoma, Spokane, Olympia, Portland, Salem, Eugene, Las Vegas, Reno, Carson City
+United States|America/Anchorage|Anchorage, Juneau, Fairbanks
+United States|Pacific/Honolulu|Honolulu, Hilo
 Mexico|America/Mexico_City|Mexico City, Guadalajara, Monterrey, Puebla
 Mexico|America/Cancun|Cancún
 Mexico|America/Tijuana|Tijuana
