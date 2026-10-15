@@ -182,7 +182,7 @@
       <form id="form" autocomplete="off">
         <label for="f-title">Title</label>
         <div class="ac" style="margin-top:-.55rem">
-          <input id="f-title" required maxlength="200" placeholder="Start typing to search IMDb" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
+          <input id="f-title" required maxlength="200" placeholder="Start typing to search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
           <ul class="sugg" id="sugg" role="listbox" hidden></ul>
         </div>
         <div class="poster-pick" id="f-poster-box" hidden>
@@ -489,28 +489,59 @@
       const data = await imdbJsonp(key);
       if (seq !== searchSeq || titleIn.value.trim() !== q) return;
       sugg = (data.d || []).filter(d => /^tt/.test(d.id) && KINDS[d.qid]).slice(0, 8).map(d => ({
-        ...d, img: Array.isArray(d.i) ? d.i[0] : d.i && d.i.imageUrl,
+        title: d.l, year: d.y, series: SERIES.has(d.qid), imdb: d.id, cast: d.s || "",
+        img: sized(Array.isArray(d.i) ? d.i[0] : d.i && d.i.imageUrl, 300),
+        sub: [KINDS[d.qid], d.yr || d.y, d.s].filter(Boolean).join(" · "),
       }));
       drawSugg();
     } catch {
-      if (seq === searchSeq) suggNote("IMDb search isn't reachable right now. You can still type the title yourself.");
+      // IMDb didn't answer: search Wikipedia instead (keyless and allowed from any site).
+      try {
+        const found = await searchWikipedia(q);
+        if (seq !== searchSeq || titleIn.value.trim() !== q) return;
+        sugg = found;
+        drawSugg();
+      } catch {
+        if (seq === searchSeq) suggNote("Search isn't reachable right now. You can still type the title yourself.");
+      }
     }
+  }
+
+  async function searchWikipedia(q) {
+    const url = "https://en.wikipedia.org/w/api.php?" + new URLSearchParams({
+      action: "query", format: "json", origin: "*", generator: "search", gsrlimit: "15",
+      gsrsearch: `${q} film OR television series`, prop: "pageimages|description",
+      piprop: "thumbnail", pithumbsize: "300", pilicense: "any",
+    });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.status);
+    const pages = Object.values((await res.json()).query?.pages || {}).sort((a, b) => a.index - b.index);
+    return pages.filter(pg => /\b(film|movie|television|tv series|miniseries|series|sitcom|anime)\b/i.test(pg.description || ""))
+      .slice(0, 8).map(pg => {
+        const desc = pg.description;
+        const year = (desc.match(/\b(18[89]\d|19\d\d|20\d\d)\b/) || [])[1];
+        return {
+          title: pg.title.replace(/\s*\((?:\d{4} )?(?:[\w -]+ )?(?:film|TV series|series|miniseries)\)$/i, ""),
+          year: year ? +year : null, series: !/\bfilm\b/i.test(desc), imdb: "", cast: "",
+          img: pg.thumbnail?.source || "", sub: desc,
+        };
+      });
   }
 
   function drawSugg() {
     suggBox.textContent = ""; active = -1;
-    if (!sugg.length) { suggNote("No IMDb matches. Keep typing, or add it as is."); return; }
+    if (!sugg.length) { suggNote("No matches. Keep typing, or add it as is."); return; }
     sugg.forEach((d, i) => {
       const li = document.createElement("li");
       li.id = "sugg-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", "false");
       let pic;
       if (d.img) {
-        pic = document.createElement("img"); pic.src = sized(d.img, 80); pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer";
+        pic = document.createElement("img"); pic.src = d.img; pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer";
       } else { pic = document.createElement("span"); pic.className = "noimg"; }
       const txt = document.createElement("span");
-      const t = document.createElement("span"); t.className = "t"; t.textContent = d.l;
+      const t = document.createElement("span"); t.className = "t"; t.textContent = d.title;
       const sub = document.createElement("span"); sub.className = "s";
-      sub.textContent = [KINDS[d.qid], d.yr || d.y, d.s].filter(Boolean).join(" · ");
+      sub.textContent = d.sub;
       txt.append(t, sub);
       li.append(pic, txt);
       li.addEventListener("mousedown", e => { e.preventDefault(); pick(i); });
@@ -529,10 +560,10 @@
   function pick(i) {
     const d = sugg[i];
     if (!d) return;
-    titleIn.value = d.l;
-    if (d.y) $("f-year").value = d.y;
-    setType(SERIES.has(d.qid) ? "series" : "movie");
-    setPoster(sized(d.img, 300), d.id, d.s || "");
+    titleIn.value = d.title;
+    if (d.year) $("f-year").value = d.year;
+    setType(d.series ? "series" : "movie");
+    setPoster(d.img, d.imdb, d.cast);
     searchSeq++;
     closeSugg();
   }
