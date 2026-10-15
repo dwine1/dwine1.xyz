@@ -122,6 +122,19 @@
   .us { display: grid; gap: 1rem; border-left: 1px solid var(--line); padding-left: 2rem; align-content: start; }
   .us h2 { font-family: var(--mono); font-weight: 500; font-size: 1.2rem; text-transform: uppercase; letter-spacing: .1em; margin: 0; color: var(--muted); }
   .us-groups { display: grid; gap: 1rem; }
+  .us-map { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .75rem; }
+  .us-map svg { display: block; width: 100%; height: auto; }
+  .us-map .zone { fill: var(--zc); fill-opacity: .35; stroke: var(--zc); stroke-width: 1.5; cursor: pointer; transition: fill-opacity .2s ease; }
+  .us-map .zone.night { fill-opacity: .6; }
+  .us-map .zone.on { fill-opacity: .8; }
+  .us-map .borders { fill: none; stroke: var(--surface); stroke-width: .8; stroke-linejoin: round; pointer-events: none; }
+  .us-map text { fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; text-anchor: middle; pointer-events: none; }
+  .us-map .lbl-name { font-family: var(--display); font-weight: 500; font-size: 28px; }
+  .us-map .lbl-time { font-family: var(--mono); font-weight: 500; font-size: 34px; }
+  .us-map .small .lbl-name { font-size: 21px; }
+  .us-map .small .lbl-time { font-size: 25px; }
+  .us-group { border-left: 5px solid var(--zc); }
+  .us-group.on { box-shadow: 0 0 0 2px var(--zc); }
   .us-group { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem 1.2rem; break-inside: avoid; }
   .us-group summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 0 .9rem; align-items: center; }
   .us-group svg.clock { grid-row: 1 / 3; width: 4.35rem; }
@@ -232,12 +245,14 @@
 
   <aside class="us" aria-labelledby="usTitle">
     <h2 id="usTitle">United States</h2>
+    <figure class="us-map" id="usMap"></figure>
     <div class="us-groups" id="usGroups"></div>
   </aside>
   </div>
 </div>
 
 <script src="cities.js"></script>
+<script src="us-map.js"></script>
 <script>
   // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
   const LEGACY = {
@@ -636,6 +651,15 @@
     ["Alaska", ["America/Anchorage"]],
     ["Hawaii", ["Pacific/Honolulu"]],
   ];
+  const ZONE_COLORS = { Eastern: "#4f7cff", Central: "#22a88f", Mountain: "#d9982b", Arizona: "#e2693a", Pacific: "#9a6bdc", Alaska: "#3a9fd6", Hawaii: "#d6528a" };
+  const LABEL_AT = { Pacific: [92, 250], Arizona: [205, 395], Hawaii: [275, 535], Alaska: [115, 530] };
+  const mapSvg = el("svg", { viewBox: "0 0 975 610", role: "img", "aria-label": "Map of US time zones with the current time in each" });
+  document.getElementById("usMap").appendChild(mapSvg);
+  const zoneLayer = el("g", {}, mapSvg);
+  el("path", { d: US_MAP.borders, class: "borders" }, mapSvg);
+  const labelLayer = el("g", {}, mapSvg);
+  function highlightZone(v, on) { v.det.classList.toggle("on", on); v.shape.classList.toggle("on", on); }
+
   const usViews = US_ZONES.map(([label, zones]) => {
     const names = CITIES.filter(c => c.country === "United States" && zones.includes(c.zone)).map(c => c.name);
     const det = document.createElement("details");
@@ -653,7 +677,21 @@
     const clock = makeClock();
     det.querySelector("summary").prepend(clock.svg);
     document.getElementById("usGroups").appendChild(det);
-    return { det, clock, zone: zones[0], count: list.children.length, time: det.querySelector(".us-time"), meta: det.querySelector(".us-meta") };
+    det.style.setProperty("--zc", ZONE_COLORS[label]);
+
+    const shape = el("path", { d: US_MAP.zones[label].d, class: "zone", style: `--zc: ${ZONE_COLORS[label]}` }, zoneLayer);
+    el("title", {}, shape).textContent = label;
+    const [x, y] = LABEL_AT[label] || US_MAP.zones[label].c;
+    const g = el("g", { class: ["Arizona", "Hawaii", "Alaska"].includes(label) ? "small" : "" }, labelLayer);
+    el("text", { x, y: y - 6, class: "lbl-name" }, g).textContent = label;
+    const mapTime = el("text", { x, y: y + 26, class: "lbl-time" }, g);
+    const v = { det, clock, shape, mapTime, zone: zones[0], count: list.children.length, time: det.querySelector(".us-time"), meta: det.querySelector(".us-meta") };
+    shape.addEventListener("mouseenter", () => highlightZone(v, true));
+    shape.addEventListener("mouseleave", () => highlightZone(v, false));
+    shape.addEventListener("click", () => { det.open = true; det.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+    det.addEventListener("mouseenter", () => highlightZone(v, true));
+    det.addEventListener("mouseleave", () => highlightZone(v, false));
+    return v;
   });
   function updateUS(now) {
     for (const v of usViews) {
@@ -665,6 +703,8 @@
       v.clock.min.setAttribute("transform", `rotate(${m * 6} 60 60)`);
       v.clock.sec.setAttribute("transform", `rotate(${p.second * 6} 60 60)`);
       v.det.classList.toggle("night", night);
+      v.shape.classList.toggle("night", night);
+      v.mapTime.textContent = `${String(hh).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}${state.h12 ? (p.hour < 12 ? "AM" : "PM") : ""} ${night ? "🌙" : "☀️"}`;
       v.time.textContent = `${String(hh).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}${state.h12 ? (p.hour < 12 ? " AM" : " PM") : ""} ${night ? "🌙" : "☀️"}`;
       const abbr = new Intl.DateTimeFormat("en-US", { timeZone: v.zone, timeZoneName: "short" }).formatToParts(now).find(x => x.type === "timeZoneName").value;
       v.meta.textContent = `${abbr} · ${fmtOffset(offsetMinutes(v.zone, now))} · ${v.count} ${v.count === 1 ? "city" : "cities"}`;
