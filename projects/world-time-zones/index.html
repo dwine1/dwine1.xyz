@@ -134,6 +134,20 @@
   .us-map .small .lbl-name { font-size: 21px; }
   .us-map .small .lbl-time { font-size: 25px; }
   .us-group { border-left: 5px solid var(--zc); }
+  .pin-map { display: grid; gap: .75rem; }
+  .pin-slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+  .pin-slot { display: flex; gap: .4rem; align-items: center; min-width: 0; }
+  .pin-slot .search { flex: 1 1 auto; }
+  .pin-slot button { padding-inline: .55rem; }
+  .pin-dot {
+    flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--pc); color: #fff;
+    display: grid; place-items: center; font-family: var(--mono); font-size: .8rem; font-weight: 500;
+  }
+  .us-map .land { fill: var(--bg); stroke: var(--line); stroke-width: 1; }
+  .us-map .pin-ring { fill: var(--pc); stroke: var(--surface); stroke-width: 3; }
+  .us-map .pin-num { fill: #fff; stroke: none; font-family: var(--mono); font-weight: 500; font-size: 21px; dominant-baseline: central; }
+  .us-map .pin-label { font-family: var(--body); font-weight: 700; font-size: 30px; dominant-baseline: central; }
+  @media (max-width: 40rem) { .pin-slots { grid-template-columns: 1fr; } }
   .us-group.on { box-shadow: 0 0 0 2px var(--zc); }
   .us-group { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem 1.2rem; break-inside: avoid; }
   .us-group summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 0 .9rem; align-items: center; }
@@ -246,6 +260,11 @@
   <aside class="us" aria-labelledby="usTitle">
     <h2 id="usTitle">United States</h2>
     <figure class="us-map" id="usMap"></figure>
+    <section class="pin-map" aria-labelledby="pinTitle">
+      <h2 id="pinTitle">Find US cities</h2>
+      <ol class="pin-slots" id="pinSlots"></ol>
+      <figure class="us-map" id="pinMap"></figure>
+    </section>
     <div class="us-groups" id="usGroups"></div>
   </aside>
   </div>
@@ -308,6 +327,10 @@
     .map(n => byName.get(n).key);
   const DEFAULT_SLOTS = ["Istanbul", "New York", "Tokyo", "London"].map(n => byName.get(n).key);
   const DEFAULT_DIFFS = [[0, 1], [2, 3], [0, 2]];
+  // US cities that have a spot on the pin map.
+  const US_CITIES = CITIES.filter(c => c.country === "United States" && US_PINS[c.name]);
+  const usKey = (n) => US_CITIES.find(c => c.name === n).key;
+  const DEFAULT_PINS = ["New York", "Chicago", "Denver", "Los Angeles"].map(usKey);
   const KEY = "world-time-zones";
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -321,10 +344,11 @@
         const diffs = DEFAULT_DIFFS.map((d, i) => Array.isArray(s.diffs) && okPair(s.diffs[i]) ? s.diffs[i]
           : (i === 0 && okPair(s.diff)) ? s.diff : d.slice());
         const slots = [0, 1, 2, 3].map(i => (Array.isArray(s.slots) && byKey.has(s.slots[i])) ? s.slots[i] : (Array.isArray(s.slots) ? null : DEFAULT_SLOTS[i]));
-        return { cities: [...new Set(keys)], slots, diffs, h12: !!s.h12 };
+        const pins = [0, 1, 2, 3].map(i => Array.isArray(s.pins) ? (US_CITIES.some(c => c.key === s.pins[i]) ? s.pins[i] : null) : DEFAULT_PINS[i]);
+        return { cities: [...new Set(keys)], slots, diffs, pins, h12: !!s.h12 };
       }
     } catch (e) {}
-    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diffs: DEFAULT_DIFFS.map(d => d.slice()), h12: false };
+    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diffs: DEFAULT_DIFFS.map(d => d.slice()), pins: DEFAULT_PINS.slice(), h12: false };
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   const state = load();
@@ -388,9 +412,9 @@
   const slotsEl = document.getElementById("slots");
   let cards = [], slotCards = [];
 
-  function search(q, exclude) {
+  function search(q, exclude, from = CITIES) {
     const nq = norm(q.trim());
-    const pool = CITIES.filter(c => !exclude.includes(c.key));
+    const pool = from.filter(c => !exclude.includes(c.key));
     if (!nq) return pool;
     const ranked = [];
     for (const c of pool) {
@@ -418,12 +442,12 @@
   }
 
   // A type-to-search city box. `exclude()` lists keys to hide; `query()` is the text to filter by; `onPick(city)` runs on a choice.
-  function makePicker(input, listEl, { exclude, query, onPick }) {
+  function makePicker(input, listEl, { exclude, query, onPick, pool }) {
     let matches = [], active = 0;
     const optId = (i) => listEl.id + "-" + i;
     function open() {
       const now = new Date(), q = query();
-      matches = search(q, exclude());
+      matches = search(q, exclude(), pool);
       active = 0;
       listEl.textContent = "";
       if (!matches.length) {
@@ -483,7 +507,7 @@
         close();
       }
     });
-    return { first: () => search(query(), exclude())[0] };
+    return { first: () => search(query(), exclude(), pool)[0] };
   }
 
   function makeCard(key, onRemove) {
@@ -711,6 +735,84 @@
     }
   }
 
+  // Pin map: up to four US cities, each with its own search box and Remove button, shown at their real location.
+  const PIN_COLORS = ["#e5484d", "#2b4fd8", "#12a594", "#f76b15"];
+  const pinSvg = el("svg", { viewBox: "0 0 975 610", role: "img", "aria-label": "Map of the US with the chosen cities pinned" });
+  document.getElementById("pinMap").appendChild(pinSvg);
+  for (const z of Object.values(US_MAP.zones)) el("path", { d: z.d, class: "land" }, pinSvg);
+  el("path", { d: US_MAP.borders, class: "borders" }, pinSvg);
+  const pinLayer = el("g", {}, pinSvg);
+  const pinViews = PIN_COLORS.map((color, i) => {
+    const li = document.createElement("li");
+    li.className = "pin-slot";
+    li.style.setProperty("--pc", color);
+    li.innerHTML = `
+      <span class="pin-dot" aria-hidden="true">${i + 1}</span>
+      <div class="search">
+        <input type="text" role="combobox" aria-expanded="false" aria-controls="pin-opts-${i}" aria-autocomplete="list"
+          autocomplete="off" spellcheck="false" placeholder="Type a US city…" aria-label="US city for pin ${i + 1}">
+        <ul class="options" id="pin-opts-${i}" role="listbox" aria-label="US cities" hidden></ul>
+      </div>
+      <button type="button">Remove</button>`;
+    document.getElementById("pinSlots").appendChild(li);
+    const input = li.querySelector("input"), rm = li.querySelector("button");
+    makePicker(input, li.querySelector("ul"), {
+      pool: US_CITIES,
+      exclude: () => [],
+      query: () => (state.pins[i] && input.value === byKey.get(state.pins[i]).name) ? "" : input.value,
+      onPick: (c) => { state.pins[i] = c.key; save(); renderPins(); input.blur(); },
+    });
+    rm.addEventListener("click", () => { state.pins[i] = null; save(); renderPins(); });
+    const g = el("g", { class: "pin", style: `--pc: ${color}` }, pinLayer);
+    el("circle", { r: 19, class: "pin-ring" }, g);
+    el("text", { class: "pin-num", y: 1 }, g).textContent = i + 1;
+    const label = el("text", { class: "pin-label" }, g);
+    return { input, rm, g, label };
+  });
+  function renderPins() {
+    pinViews.forEach((v, i) => {
+      const c = state.pins[i] && byKey.get(state.pins[i]);
+      v.input.value = c ? c.name : "";
+      v.rm.disabled = !c;
+      v.rm.setAttribute("aria-label", c ? `Remove ${c.name}` : `Pin ${i + 1} is empty`);
+      v.g.style.display = c ? "" : "none";
+    });
+    // Place each label beside its pin, trying the other side or a line up or down
+    // when it would leave the map or cover a pin or an earlier label.
+    const shown = pinViews.map((v, i) => state.pins[i] && byKey.get(state.pins[i])).filter(Boolean);
+    const placed = shown.map(c => ({ x0: US_PINS[c.name][0] - 20, w: 40, y: US_PINS[c.name][1] }));
+    pinViews.map((v, i) => ({ v, c: state.pins[i] && byKey.get(state.pins[i]) }))
+      .filter(o => o.c)
+      .map(o => ({ ...o, xy: US_PINS[o.c.name] }))
+      .sort((a, b) => a.xy[1] - b.xy[1])
+      .forEach(({ v, c, xy: [x, y] }) => {
+        const w = (c.name.length + 9) * 15;
+        const sides = x > 700 ? [true, false] : [false, true];  // try the left side first in the east
+        const tries = [0, 36, -36, 72, -72].flatMap(dy => sides.map(left => ({ left, dy })));
+        const fits = ({ left, dy }) => {
+          const x0 = left ? x - 26 - w : x + 26;
+          return x0 >= 0 && x0 + w <= 975 && !placed.some(r => Math.abs(r.y - (y + dy)) < 36 && x0 < r.x0 + r.w && r.x0 < x0 + w);
+        };
+        const { left, dy } = tries.find(fits) || tries[0];
+        placed.push({ x0: left ? x - 26 - w : x + 26, w, y: y + dy });
+        v.g.setAttribute("transform", `translate(${x} ${y})`);
+        v.label.setAttribute("x", left ? -26 : 26);
+        v.label.setAttribute("y", dy);
+        v.label.style.textAnchor = left ? "end" : "start";
+      });
+    tick();
+  }
+  function updatePins(now) {
+    pinViews.forEach((v, i) => {
+      const c = state.pins[i] && byKey.get(state.pins[i]);
+      if (!c) return;
+      const p = partsIn(c.zone, now);
+      const hh = state.h12 ? ((p.hour + 11) % 12) + 1 : p.hour;
+      const night = p.hour < 6 || p.hour >= 19;
+      v.label.textContent = `${c.name} ${String(hh).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}${state.h12 ? (p.hour < 12 ? "AM" : "PM") : ""} ${night ? "🌙" : "☀️"}`;
+    });
+  }
+
   function wall(zone, now) {
     const p = partsIn(zone, now);
     return [p.year, p.month - 1, p.day, p.hour, p.minute, p.second];
@@ -746,6 +848,7 @@
     }
     updateDiff(now);
     updateUS(now);
+    updatePins(now);
   }
 
   document.getElementById("add").addEventListener("click", () => {
@@ -757,6 +860,8 @@
     state.cities = DEFAULTS.slice();
     state.slots = DEFAULT_SLOTS.slice();
     state.diffs = DEFAULT_DIFFS.map(d => d.slice());
+    state.pins = DEFAULT_PINS.slice();
+    renderPins();
     save(); render(); renderSlots();
   });
   function setFormat(h12) {
@@ -771,6 +876,7 @@
 
   render();
   renderSlots();
+  renderPins();
   // Tick on each second boundary so the second hand stays in step.
   (function loop() { tick(); setTimeout(loop, 1000 - (Date.now() % 1000) + 5); })();
 </script>
