@@ -9,7 +9,7 @@
 <title>Movies and Series · dwine1.xyz</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-  /* Layout: back link and title, a stats strip, then two columns: the add/edit form on the left, the filterable list of titles on the right. Stacks on narrow screens. */
+  /* Layout: back link and title, a stats strip, My favourites, then four columns on wide screens: the add/edit form, the filterable list, the All titles table and the Must watch list. Narrower screens move the right-hand panels below; phones stack everything. */
   :root {
     --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
     --accent: #2b4fd8; --accent-soft: #e2e8fd;
@@ -41,7 +41,7 @@
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
   .wrap {
-    max-width: 112rem; margin: 0 auto; padding-block: 2rem 4rem;
+    max-width: 140rem; margin: 0 auto; padding-block: 2rem 4rem;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     display: grid; gap: 1.5rem;
@@ -52,15 +52,33 @@
   h2 { font-family: var(--display); font-weight: 500; font-size: 1.25rem; margin: 0; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 10rem)); gap: .5rem; }
+  .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 10rem)); gap: .5rem; }
   @media (max-width: 40rem) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .8rem; display: grid; }
   .stat b { font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .stat span { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-  @media (max-width: 90rem) { .layout { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } .table-panel { grid-column: 1 / -1; } }
-  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+  /* Wide: form | list | all titles | must watch. Narrower screens move the right-hand panels below. */
+  .layout { display: grid; gap: 1.5rem; align-items: start;
+    grid-template-columns: minmax(0, 21rem) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 18rem);
+    grid-template-areas: "form list table must"; }
+  .form-panel { grid-area: form; } .list-panel { grid-area: list; } .table-panel { grid-area: table; } .must-panel { grid-area: must; }
+  @media (max-width: 120rem) { .layout { grid-template-columns: minmax(0, 21rem) minmax(0, 1fr) minmax(0, 18rem); grid-template-areas: "form list must" "table table table"; } }
+  @media (max-width: 80rem) { .layout { grid-template-columns: minmax(0, 21rem) minmax(0, 1fr); grid-template-areas: "form list" "must must" "table table"; } }
+  @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; grid-template-areas: "form" "list" "must" "table"; } }
+
+  /* Must watch list */
+  .must-panel h2 .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-left: .35rem; }
+  .must-list { list-style: none; margin: 0; padding: 0; display: grid; }
+  .must-list li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+  .must-list .pic { width: 2.6rem; height: 3.8rem; object-fit: cover; border-radius: 4px; background: var(--accent-soft); display: grid; place-items: center; font-family: var(--display); color: var(--accent); }
+  .must-list .t { font-size: .92rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .must-list .s { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+  .must-list .acts { display: flex; gap: .25rem; }
+  .must-list .acts button { font: inherit; font-size: .8rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; min-width: 2rem; min-height: 2rem; cursor: pointer; }
+  .must-list .acts button:hover { border-color: var(--accent); color: var(--accent); }
+  .flag { font-size: 1.05rem; line-height: 1; background: none; border: 0; cursor: pointer; color: var(--muted); padding: .2rem .3rem; min-height: 2rem; }
+  .flag[aria-pressed="true"] { color: var(--plan); }
 
   /* All titles table, far right */
   .table-panel .bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; }
@@ -163,7 +181,7 @@
   .item.has-poster { grid-template-columns: 4.5rem minmax(0, 1fr); column-gap: .9rem; }
   .item.has-poster > :not(.poster) { grid-column: 2; }
   .item .poster { grid-row: 1 / span 4; width: 4.5rem; height: 6.5rem; object-fit: cover; border-radius: 6px; background: var(--line); }
-  .item .head .heart { margin-left: auto; }
+  .item .head .flag { margin-left: auto; }
   @media (max-width: 30rem) { .item.has-poster { grid-template-columns: 3.5rem minmax(0, 1fr); } .item .poster { width: 3.5rem; height: 5rem; } .fav-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .imdb { font-family: var(--mono); font-size: .75rem; color: var(--accent); }
 
@@ -193,7 +211,7 @@
   </section>
 
   <div class="layout">
-    <section class="panel" aria-labelledby="form-title">
+    <section class="panel form-panel" aria-labelledby="form-title">
       <h2 id="form-title">Add a title</h2>
       <form id="form" autocomplete="off">
         <label for="f-title">Title</label>
@@ -223,6 +241,7 @@
               <option value="watching">Watching</option>
               <option value="watched" selected>Watched</option>
               <option value="fav">Favourite</option>
+              <option value="must">Must watch</option>
             </select>
           </label>
           <label>Year
@@ -257,7 +276,7 @@
       </form>
     </section>
 
-    <section class="panel" aria-labelledby="list-title">
+    <section class="panel list-panel" aria-labelledby="list-title">
       <h2 id="list-title">My list</h2>
       <div class="tools">
         <div class="top">
@@ -281,6 +300,12 @@
         <input type="file" id="import-file" accept="application/json,.json" hidden>
         <span>Saved in this browser. Export to back up or move to another device.</span>
       </div>
+    </section>
+
+    <section class="panel must-panel" aria-labelledby="must-title">
+      <h2 id="must-title">Must watch<span class="count" id="must-count"></span></h2>
+      <ul class="must-list" id="must-list"></ul>
+      <p class="empty" id="must-empty" hidden>Choose “Must watch” as the status when you add a title, or tap ⚑ on any title in your list.</p>
     </section>
 
     <section class="panel table-panel" aria-labelledby="table-title">
@@ -355,6 +380,7 @@
       imdb: /^tt\d{1,10}$/.test(x.imdb || "") ? x.imdb : "",
       cast: String(x.cast || "").slice(0, 200),
       fav: x.fav === true,
+      must: x.must === true && x.status !== "watched",
       added: Number(x.added) || now,
       updated: Number(x.updated) || Number(x.added) || now,
     };
@@ -399,6 +425,7 @@
     drawStars();
     setPoster("", "", "");
     setFav(false);
+    formMust = false;
     closeSugg();
     hideDup();
     $("form-title").textContent = "Add a title";
@@ -423,6 +450,8 @@
     drawStars();
     setPoster(it.poster, it.imdb, it.cast);
     setFav(it.fav);
+    formMust = it.must;
+    $("f-status").value = statusValue(it);
     $("form-title").textContent = "Edit title";
     $("f-submit").textContent = "Save";
     $("f-cancel").hidden = false;
@@ -436,7 +465,7 @@
       id: editingId || undefined,
       title: $("f-title").value,
       type: formType,
-      status: $("f-status").value === "fav" ? "watched" : $("f-status").value,
+      status: $("f-status").value === "fav" ? "watched" : $("f-status").value === "must" ? "plan" : $("f-status").value,
       year: $("f-year").value,
       season: formType === "series" ? $("f-season").value : null,
       episode: formType === "series" ? $("f-episode").value : null,
@@ -448,6 +477,7 @@
       imdb: formImdb,
       cast: formCast,
       fav: formFav,
+      must: formMust,
     });
     if (!data) return;
     const dup = findDuplicate(data, editingId);
@@ -505,11 +535,68 @@
     if (!formFav && st.value === "fav") st.value = "watched";
   }
   $("f-fav").addEventListener("click", () => setFav(!formFav));
-  $("f-status").addEventListener("change", () => setFav($("f-status").value === "fav" || (formFav && $("f-status").value !== "watched")));
+  let formMust = false;
+  $("f-status").addEventListener("change", () => {
+    const v = $("f-status").value;
+    if (v === "must") formMust = true;
+    else if (v !== "watching") formMust = false;
+    setFav(v === "fav" || (formFav && v !== "watched"));
+  });
 
-  // "Favourite" in a status menu means a watched title that is in My favourites.
-  function statusValue(it) { return it.fav && it.status === "watched" ? "fav" : it.status; }
-  function statusMatch(it, f) { return f === "all" || (f === "fav" ? it.fav : it.status === f); }
+  // "Favourite" in a status menu means a watched title that is in My favourites;
+  // "Must watch" means a planned title that is on the Must watch list.
+  function statusValue(it) { return it.fav && it.status === "watched" ? "fav" : it.must && it.status === "plan" ? "must" : it.status; }
+  function statusMatch(it, f) { return f === "all" || (f === "fav" ? it.fav : f === "must" ? it.must : it.status === f); }
+  function setStatus(it, v) {
+    if (v === "fav") { it.status = "watched"; it.fav = true; }
+    else if (v === "must") { it.status = "plan"; it.must = true; }
+    else { if (it.status === "watched" && it.fav) it.fav = false; if (v === "plan") it.must = false; it.status = v; }
+    if (it.status === "watched") it.must = false;
+  }
+
+  function flag(it) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "flag"; b.textContent = "⚑";
+    b.title = it.must ? "On your Must watch list" : "Add to Must watch";
+    b.setAttribute("aria-pressed", String(it.must));
+    b.setAttribute("aria-label", it.must ? `Remove ${it.title} from Must watch` : `Add ${it.title} to Must watch`);
+    b.onclick = () => {
+      it.must = !it.must;
+      if (it.must && it.status === "watched") it.status = "plan";
+      touch(it);
+      toast(it.must ? `Added “${it.title}” to Must watch` : `Removed “${it.title}” from Must watch`);
+    };
+    return b;
+  }
+
+  function renderMust() {
+    const list = $("must-list");
+    list.textContent = "";
+    const must = items.filter(i => i.must).sort((a, b) => a.added - b.added);
+    $("must-count").textContent = must.length ? must.length : "";
+    $("must-empty").hidden = must.length > 0;
+    must.forEach(it => {
+      const li = document.createElement("li");
+      let pic;
+      if (it.poster) { pic = document.createElement("img"); pic.src = it.poster; pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer"; }
+      else { pic = document.createElement("span"); pic.textContent = it.title.charAt(0).toUpperCase(); }
+      pic.className = "pic";
+      const txt = document.createElement("span");
+      const t = document.createElement("span"); t.className = "t"; t.textContent = it.title;
+      const sub = document.createElement("span"); sub.className = "s"; sub.textContent = [TYPE[it.type], it.year].filter(Boolean).join(" · ");
+      txt.append(t, sub);
+      const acts = document.createElement("span"); acts.className = "acts";
+      const done = document.createElement("button"); done.type = "button"; done.textContent = "✓";
+      done.title = "Mark as watched"; done.setAttribute("aria-label", `Mark ${it.title} as watched`);
+      done.onclick = () => { setStatus(it, "watched"); touch(it); toast(`Marked “${it.title}” as watched`); };
+      const rm = document.createElement("button"); rm.type = "button"; rm.textContent = "✕";
+      rm.title = "Remove from Must watch"; rm.setAttribute("aria-label", `Remove ${it.title} from Must watch`);
+      rm.onclick = () => { it.must = false; touch(it); };
+      acts.append(done, rm);
+      li.append(pic, txt, acts);
+      list.appendChild(li);
+    });
+  }
 
   // ----- Poster and IMDb search -----
   // IMDb image URLs take size options after "._V1_"; ask for a small copy so the page stays light.
@@ -688,11 +775,11 @@
 
   function render() {
     // Stats
-    const c = { all: items.length, movie: 0, series: 0, plan: 0, watching: 0, watched: 0, fav: 0 };
-    items.forEach(i => { c[i.type]++; c[i.status]++; if (i.fav) c.fav++; });
+    const c = { all: items.length, movie: 0, series: 0, plan: 0, watching: 0, watched: 0, fav: 0, must: 0 };
+    items.forEach(i => { c[i.type]++; c[i.status]++; if (i.fav) c.fav++; if (i.must) c.must++; });
     const stats = $("stats");
     stats.textContent = "";
-    [["Titles", c.all], ["Plan to watch", c.plan], ["Watching", c.watching], ["Watched", c.watched], ["Favourites", c.fav]].forEach(([l, n]) => {
+    [["Titles", c.all], ["Plan to watch", c.plan], ["Watching", c.watching], ["Watched", c.watched], ["Favourites", c.fav], ["Must watch", c.must]].forEach(([l, n]) => {
       const d = document.createElement("div"); d.className = "stat";
       d.innerHTML = "<b></b><span></span>";
       d.querySelector("b").textContent = n; d.querySelector("span").textContent = l;
@@ -700,16 +787,17 @@
     });
 
     renderFavs();
+    renderMust();
     renderTable();
 
     // Filters, with counts that respect the other filter
-    const tc = { all: 0, movie: 0, series: 0 }, sc = { all: 0, plan: 0, watching: 0, watched: 0, fav: 0 };
+    const tc = { all: 0, movie: 0, series: 0 }, sc = { all: 0, plan: 0, watching: 0, watched: 0, fav: 0, must: 0 };
     items.forEach(i => {
       if (statusMatch(i, statusFilter)) { tc.all++; tc[i.type]++; }
-      if (typeFilter === "all" || i.type === typeFilter) { sc.all++; sc[i.status]++; if (i.fav) sc.fav++; }
+      if (typeFilter === "all" || i.type === typeFilter) { sc.all++; sc[i.status]++; if (i.fav) sc.fav++; if (i.must) sc.must++; }
     });
     chips($("type-chips"), [["all", "All types"], ["movie", "Movies"], ["series", "Series"]], typeFilter, tc, v => { typeFilter = v; render(); });
-    chips($("status-chips"), [["all", "Any status"], ...Object.entries(STATUS), ["fav", "Favourites"]], statusFilter, sc, v => { statusFilter = v; render(); });
+    chips($("status-chips"), [["all", "Any status"], ...Object.entries(STATUS), ["fav", "Favourites"], ["must", "Must watch"]], statusFilter, sc, v => { statusFilter = v; render(); });
 
     const q = $("q").value.trim().toLowerCase();
     const shown = items.filter(i =>
@@ -786,6 +874,7 @@
     if (it.year) { const y = document.createElement("span"); y.className = "year"; y.textContent = it.year; head.appendChild(y); }
     const tt = document.createElement("span"); tt.className = "tag"; tt.textContent = TYPE[it.type]; head.appendChild(tt);
     const st = document.createElement("span"); st.className = "tag st"; st.textContent = STATUS[it.status]; head.appendChild(st);
+    head.appendChild(flag(it));
     head.appendChild(heart(it));
     li.appendChild(head);
 
@@ -806,12 +895,8 @@
     const act = document.createElement("div"); act.className = "actions";
     const sel = document.createElement("select");
     sel.setAttribute("aria-label", `Status of ${it.title}`);
-    [...Object.entries(STATUS), ["fav", "Favourite"]].forEach(([v, l]) => sel.add(new Option(l, v, false, v === statusValue(it))));
-    sel.onchange = () => {
-      if (sel.value === "fav") { it.status = "watched"; it.fav = true; }
-      else { if (it.status === "watched" && it.fav) it.fav = false; it.status = sel.value; }
-      touch(it);
-    };
+    [...Object.entries(STATUS), ["fav", "Favourite"], ["must", "Must watch"]].forEach(([v, l]) => sel.add(new Option(l, v, false, v === statusValue(it))));
+    sel.onchange = () => { setStatus(it, sel.value); touch(it); };
     act.appendChild(sel);
     if (it.type === "series") {
       act.appendChild(btn("+1 episode", () => {
