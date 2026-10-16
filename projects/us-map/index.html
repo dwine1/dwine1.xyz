@@ -16,7 +16,7 @@
     --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
     --accent: #2b4fd8; --accent-soft: #e2e8fd;
     --water: #dfe8f1; --land: #fbfaf6; --border: #9aa7b5; --dot: #33414f; --capital: #d8452b; --halo: #fbfaf6;
-    --county: #c9d1da; --county-fg: #7a8794; --city-fill: rgba(43, 79, 216, .07); --city-line: #6f86e0;
+    --county: #c9d1da; --county-fg: #7a8794; --state-fg: #6b4fa8;
     --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
     --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -26,7 +26,7 @@
       --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
       --accent: #8ea6ff; --accent-soft: #1d2848;
       --water: #0b1118; --land: #1a222c; --border: #4a5867; --dot: #c9d3de; --capital: #ff7a5c; --halo: #1a222c;
-      --county: #2c3743; --county-fg: #7f8c99; --city-fill: rgba(142, 166, 255, .08); --city-line: #6d84d6;
+      --county: #2c3743; --county-fg: #7f8c99; --state-fg: #b9a2ec;
       color-scheme: dark;
     }
   }
@@ -34,7 +34,7 @@
     --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
     --accent: #8ea6ff; --accent-soft: #1d2848;
     --water: #0b1118; --land: #1a222c; --border: #4a5867; --dot: #c9d3de; --capital: #ff7a5c; --halo: #1a222c;
-    --county: #2c3743; --county-fg: #7f8c99; --city-fill: rgba(142, 166, 255, .08); --city-line: #6d84d6;
+    --county: #2c3743; --county-fg: #7f8c99; --state-fg: #b9a2ec;
     color-scheme: dark;
   }
 
@@ -127,11 +127,11 @@
   </div>
 
   <p class="note">Scroll, pinch or double-click to zoom, drag to move, tap a dot for its population. Red squares are state capitals.
-    Thin lines inside states are county borders, with county names in grey italics. Zoom in further and real city limits are drawn too, with each city's name inside its border. <span id="limits"></span>
-    State and county shapes from the US Census Bureau via <a href="https://github.com/topojson/us-atlas">us-atlas</a>; city limits from the Census Bureau's <a href="https://tigerweb.geo.census.gov/">TIGERweb</a>; cities and populations from <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0).</p>
+    Each state's name sits inside its border in purple capitals; thin grey lines inside states are county borders, with county names in grey italics.
+    State and county shapes from the US Census Bureau via <a href="https://github.com/topojson/us-atlas">us-atlas</a>; cities and populations from <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0).</p>
 </div>
 
-<script src="us-map-data.js?v=1"></script>
+<script src="us-map-data.js?v=3"></script>
 <script src="us-counties.js?v=1"></script>
 <script>
 (() => {
@@ -152,10 +152,15 @@
   const C = window.US_COUNTIES;      // optional: the map still works without county lines
   const countyPath = C ? new Path2D(C.mesh) : null;
   const counties = C ? C.labels.map(c => ({ name: c[0], x: c[1] / 20, y: c[2] / 20, area: c[3], w: 0 })) : [];
-  // Real city limits, loaded from the Census Bureau's TIGERweb service for the part of the map in view once you zoom in.
-  const OUTLINE_K = 6;
-  const places = new Map();          // GEOID -> { name, path, bbox, lx, ly, city, w }
-  const outlineOf = new Map();       // city index -> its place
+  // State names sit at the point deepest inside each state; r is how far that point is from the border.
+  const STATE_FONT = '700 15px "Atkinson Hyperlegible", system-ui, sans-serif', STATE_H = 15;
+  // g holds extra spots spread through the state, used when the main spot is off screen after zooming in.
+  const states = D.states.map(t => {
+    const spots = [[t.l[0], t.l[1], t.l[2]]];
+    const g = t.g || [];
+    for (let j = 0; j < g.length; j += 3) spots.push([g[j], g[j + 1], g[j + 2]]);
+    return { name: t.n.toUpperCase(), abbr: t.a, spots, w: 0, aw: 0 };
+  });
   const COUNTY_FONT = 'italic 400 12px "Atkinson Hyperlegible", system-ui, sans-serif', COUNTY_H = 12;
 
   // Label size tiers, in CSS pixels; the smallest is still 12.5px.
@@ -174,13 +179,13 @@
     let f = -1;
     for (let i = 0; i < N; i++) { if (tier[i] !== f) { f = tier[i]; ctx.font = FONTS[f]; } widths[i] = ctx.measureText(name[i]).width; }
     ctx.font = COUNTY_FONT; for (const c of counties) c.w = ctx.measureText(c.name).width;
-    ctx.font = FONTS[3]; for (const p of places.values()) p.w = ctx.measureText(p.name).width;
+    ctx.font = STATE_FONT; for (const t of states) { t.w = ctx.measureText(t.name).width; t.aw = ctx.measureText(t.abbr).width; }
   }
 
   let colors = {};
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ["water", "land", "border", "dot", "capital", "halo", "fg", "muted", "accent", "county", "county-fg", "city-fill", "city-line"]) colors[k] = cs.getPropertyValue("--" + k).trim();
+    for (const k of ["water", "land", "border", "dot", "capital", "halo", "fg", "muted", "accent", "county", "county-fg", "state-fg"]) colors[k] = cs.getPropertyValue("--" + k).trim();
   }
 
   // View: world point (x, y) shows at screen (ox + x*s, oy + y*s), s = base*k.
@@ -244,16 +249,8 @@
     if (countyPath && k >= 1.8) {
       ctx.strokeStyle = colors.county; ctx.lineWidth = 0.7 / sc; ctx.stroke(countyPath);
     }
-    if (k >= OUTLINE_K) {
-      const [wx0, wy0] = toWorld(0, 0), [wx1, wy1] = toWorld(vw, vh);
-      ctx.fillStyle = colors["city-fill"]; ctx.strokeStyle = colors["city-line"]; ctx.lineWidth = 1.2 / sc;
-      for (const p of places.values()) {
-        if (p.bbox[2] < wx0 || p.bbox[0] > wx1 || p.bbox[3] < wy0 || p.bbox[1] > wy1) continue;
-        ctx.fill(p.path, "evenodd"); ctx.stroke(p.path);
-      }
-    }
     ctx.strokeStyle = colors.border;
-    ctx.lineWidth = 0.8 / sc; ctx.stroke(borderPath);
+    ctx.lineWidth = 1.3 / sc; ctx.stroke(borderPath);
     ctx.lineWidth = 1.1 / sc; ctx.stroke(nationPath);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -285,21 +282,10 @@
       if (hit(lx - pad, ly - pad, lx + w + pad, ly + h + pad)) return false;
       add(lx - pad, ly - pad, lx + w + pad, ly + h + pad); return true;
     };
-    const showOutlines = k >= OUTLINE_K;
     const tryLabel = i => {
       const x = tx + cx[i] * sc, y = ty + cy[i] * sc;
       const w = widths[i], h = FONT_H[tier[i]], g = i === selected ? 10 : 5;
       const colour = i === selected ? colors.accent : colors.fg;
-      const p = showOutlines && outlineOf.get(i);
-      if (p) {
-        // A city with its border drawn gets its name inside that border.
-        const lx = tx + p.lx * sc - w / 2, ly = ty + p.ly * sc - h / 2;
-        if ((p.bbox[2] - p.bbox[0]) * sc >= w * 0.8 && !hit(x - 3, y - 3, x + 3, y + 3) && free(lx, ly, w, h)) {
-          add(x - 3, y - 3, x + 3, y + 3);
-          labels.push([i, lx, ly, name[i], FONTS[tier[i]], colour, true]);
-          return true;
-        }
-      }
       const spots = [[x + g, y - h / 2], [x - g - w, y - h / 2], [x - w / 2, y - g - h], [x - w / 2, y + g]];
       for (const [lx, ly] of spots) {
         if (!hit(lx - 2, ly - 2, lx + w + 2, ly + h + 2) && !hit(x - 3, y - 3, x + 3, y + 3)) {
@@ -311,6 +297,29 @@
       return false;
     };
     if (selected >= 0) tryLabel(selected);
+    // Each state's name goes inside its border: the full name when it fits, else the two-letter code.
+    for (const t of states) {
+      // Main spot first; otherwise the roomiest on-screen spots, up to a few tries.
+      const cands = [];
+      t.spots.forEach(([wx, wy, r], n) => {
+        const x = tx + wx * sc, y = ty + wy * sc;
+        if (x < 0 || y < 0 || x > vw || y > vh) return;
+        cands.push([x, y, r * sc, n === 0 ? Infinity : r]);
+      });
+      cands.sort((a, b) => b[3] - a[3]);
+      let done = false;
+      for (const [x, y, room] of cands.slice(0, 6)) {
+        if (room < STATE_H * 0.6) continue;
+        const w = t.w <= room * 3.2 ? t.w : t.aw <= room * 2 ? t.aw : 0;
+        if (!w) continue;
+        // If a neighbour's name is in the way, nudge up or down while staying inside the state.
+        for (const dy of room > STATE_H * 2.2 ? [0, -1.3, 1.3] : [0]) {
+          const lx = x - w / 2, ly = y - STATE_H / 2 + dy * STATE_H;
+          if (free(lx, ly, w, STATE_H, 3)) { labels.push([-1, lx, ly, w === t.w ? t.name : t.abbr, STATE_FONT, colors["state-fg"]]); done = true; break; }
+        }
+        if (done) break;
+      }
+    }
     for (let i = 0; i < N; i++) {
       const x = tx + cx[i] * sc, y = ty + cy[i] * sc;
       if (x < -4 || y < -4 || x > vw + 4 || y > vh + 4) continue;
@@ -319,17 +328,6 @@
       if (!tryLabel(i)) dots.push(i);
     }
     let named = labels.length;
-    if (showOutlines) {
-      // Places with a border but not in the city list (mostly small towns under 1,000 people).
-      const [wx0, wy0] = toWorld(0, 0), [wx1, wy1] = toWorld(vw, vh);
-      for (const p of places.values()) {
-        if (p.city >= 0 || p.lx < wx0 || p.lx > wx1 || p.ly < wy0 || p.ly > wy1) continue;
-        if (!p.w) { ctx.font = FONTS[3]; p.w = ctx.measureText(p.name).width; }
-        if ((p.bbox[2] - p.bbox[0]) * sc < p.w * 0.8) continue;
-        const lx = tx + p.lx * sc - p.w / 2, ly = ty + p.ly * sc - FONT_H[3] / 2;
-        if (free(lx, ly, p.w, FONT_H[3])) labels.push([-1, lx, ly, p.name, FONTS[3], colors.fg]);
-      }
-    }
     if (k >= 1.8) {
       // County names go in whatever room the cities leave, inside their own county.
       for (const c of counties) {
@@ -349,8 +347,8 @@
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    for (const [i, , , , , , inside] of labels) {
-      if (i < 0 || inside) continue;   // a name inside its border needs no dot
+    for (const [i] of labels) {
+      if (i < 0) continue;
       const x = tx + cx[i] * sc, y = ty + cy[i] * sc, r = tier[i] === 0 ? 3.6 : tier[i] === 1 ? 3 : 2.4;
       if (cap[i]) { ctx.fillStyle = colors.capital; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
       else { ctx.fillStyle = colors.dot; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); }
@@ -371,7 +369,6 @@
     $("count").textContent = `${named.toLocaleString()} of ${inView.toLocaleString()} cities in view named` +
       (named < inView ? " · zoom in for more" : "");
     positionTip();
-    if (showOutlines) requestOutlines();
   }
 
   // Hover and tap: nearest drawn city within reach.
@@ -525,148 +522,6 @@
     } else if (e.key === "Enter") { if (results[active] !== undefined) { e.preventDefault(); choose(results[active]); } }
     else if (e.key === "Escape") { opts.hidden = true; q.setAttribute("aria-expanded", "false"); }
   });
-
-  const SVC = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer";
-  const FIPS = { "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT", "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI", "16": "ID", "17": "IL", "18": "IN", "19": "IA", "20": "KS", "21": "KY", "22": "LA", "23": "ME", "24": "MD", "25": "MA", "26": "MI", "27": "MN", "28": "MS", "29": "MO", "30": "MT", "31": "NE", "32": "NV", "33": "NH", "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND", "39": "OH", "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD", "47": "TN", "48": "TX", "49": "UT", "50": "VT", "51": "VA", "53": "WA", "54": "WV", "55": "WI", "56": "WY" };
-  const TILE = 16;                   // world units per request tile
-  const cityByKey = new Map();
-  const keyOf = (n, st) => fold(n).replace(/^(saint|st\.?) /, "st ").replace(/[^a-z0-9]/g, "") + "|" + st;
-  for (let i = N - 1; i >= 0; i--) cityByKey.set(keyOf(name[i], st[i]), i);   // biggest wins on duplicates
-  const outline = { state: "idle", proj: null, layers: [], tiles: new Set(), busy: 0, fails: 0 };
-  const limitsNote = msg => { $("limits").textContent = msg; };
-
-  const loadScript = src => new Promise((ok, bad) => {
-    const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = bad; document.head.append(el);
-  });
-  let jsonpN = 0;
-  async function getJSON(url) {
-    try {
-      const r = await fetch(url); if (!r.ok) throw new Error(r.status);
-      return await r.json();
-    } catch (e) {
-      // ArcGIS servers also answer JSONP, which works where a cross-site fetch is refused.
-      return new Promise((ok, bad) => {
-        const cb = "__tiger" + (++jsonpN), el = document.createElement("script");
-        const done = v => { delete window[cb]; el.remove(); clearTimeout(t); v instanceof Error ? bad(v) : ok(v); };
-        const t = setTimeout(() => done(new Error("timeout")), 15000);
-        window[cb] = done; el.onerror = () => done(new Error("jsonp"));
-        el.src = url + "&callback=" + cb; document.head.append(el);
-      });
-    }
-  }
-  async function startOutlines() {
-    outline.state = "loading"; limitsNote("Loading city limits…");
-    try {
-      if (!window.d3?.geoAlbersUsa) {
-        await loadScript("https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js");
-        await loadScript("https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js");
-      }
-      outline.proj = d3.geoAlbersUsa().scale(1300).translate([W / 2, H / 2]);
-      const info = await getJSON(SVC + "?f=json");
-      outline.layers = (info.layers || []).filter(l => /^(incorporated places|census designated places)$/i.test(l.name.trim())).map(l => l.id);
-      if (!outline.layers.length) throw new Error("no place layers");
-      outline.state = "ready"; limitsNote("");
-      requestOutlines();
-    } catch (e) {
-      outline.state = "off"; limitsNote("(City limits couldn't load right now, so only county borders are shown.)");
-    }
-  }
-  let outlineTimer = 0;
-  function requestOutlines() {
-    if (outline.state === "idle") { startOutlines(); return; }
-    if (outline.state !== "ready") return;
-    clearTimeout(outlineTimer);
-    outlineTimer = setTimeout(() => {
-      if (k < OUTLINE_K) return;
-      const [x0, y0] = toWorld(0, 0), [x1, y1] = toWorld(vw, vh);
-      const [cxw, cyw] = toWorld(vw / 2, vh / 2), want = [];
-      for (let ix = Math.floor(x0 / TILE); ix <= Math.floor(x1 / TILE); ix++)
-        for (let iy = Math.floor(y0 / TILE); iy <= Math.floor(y1 / TILE); iy++)
-          if (!outline.tiles.has(ix + "," + iy)) want.push([ix, iy, Math.hypot((ix + .5) * TILE - cxw, (iy + .5) * TILE - cyw)]);
-      want.sort((a, b) => a[2] - b[2]);       // middle of the screen first
-      for (const [ix, iy] of want) { if (outline.busy >= 4) break; fetchTile(ix, iy); }
-    }, 250);
-  }
-  async function fetchTile(ix, iy) {
-    const key = ix + "," + iy; outline.tiles.add(key); outline.busy++;
-    try {
-      // Albers USA has insets for Alaska and Hawaii, so turn a grid of points in the tile into a lon/lat box.
-      let lo0 = 180, la0 = 90, lo1 = -180, la1 = -90, any = false;
-      for (let a = 0; a <= 4; a++) for (let b = 0; b <= 4; b++) {
-        const ll = outline.proj.invert([(ix + a / 4) * TILE, (iy + b / 4) * TILE]);
-        if (!ll || !isFinite(ll[0])) continue;
-        any = true; lo0 = Math.min(lo0, ll[0]); lo1 = Math.max(lo1, ll[0]); la0 = Math.min(la0, ll[1]); la1 = Math.max(la1, ll[1]);
-      }
-      if (!any) return;
-      const q = new URLSearchParams({
-        geometry: [lo0, la0, lo1, la1].map(v => v.toFixed(4)).join(","), geometryType: "esriGeometryEnvelope", inSR: "4326",
-        spatialRel: "esriSpatialRelIntersects", outFields: "GEOID,BASENAME,NAME", returnGeometry: "true", outSR: "4326",
-        maxAllowableOffset: "0.0002", geometryPrecision: "5", where: "1=1", f: "json",
-      });
-      for (const id of outline.layers) {
-        const res = await getJSON(`${SVC}/${id}/query?${q}`);
-        if (res.error) throw new Error(res.error.message);
-        for (const f of res.features || []) addPlace(f);
-      }
-      outline.fails = 0; draw();
-    } catch (e) {
-      outline.tiles.delete(key);
-      if (++outline.fails >= 4) { outline.state = "off"; limitsNote("(City limits couldn't load right now, so only county borders are shown.)"); }
-    } finally { outline.busy--; if (outline.state === "ready") requestOutlines(); }
-  }
-  function addPlace(f) {
-    const at = f.attributes || {}, id = at.GEOID || at.geoid;
-    if (!id || places.has(id) || !f.geometry?.rings) return;
-    const rings = [];
-    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-    for (const r of f.geometry.rings) {
-      const pts = [];
-      for (const ll of r) { const p = outline.proj(ll); if (p) { pts.push(p); bx0 = Math.min(bx0, p[0]); by0 = Math.min(by0, p[1]); bx1 = Math.max(bx1, p[0]); by1 = Math.max(by1, p[1]); } }
-      if (pts.length > 2) rings.push(pts);
-    }
-    if (!rings.length) return;
-    const path = new Path2D();
-    for (const r of rings) { path.moveTo(r[0][0], r[0][1]); for (let j = 1; j < r.length; j++) path.lineTo(r[j][0], r[j][1]); path.closePath(); }
-    const [lx, ly] = interiorPoint(rings, [bx0, by0, bx1, by1]);
-    const st = FIPS[String(id).slice(0, 2)] || "";
-    const base = at.BASENAME || String(at.NAME || "").replace(/ (city|town|village|borough|CDP|municipality)$/i, "");
-    const city = cityByKey.has(keyOf(base, st)) ? cityByKey.get(keyOf(base, st)) : -1;
-    const place = { name: base, path, bbox: [bx0, by0, bx1, by1], lx, ly, city, w: 0 };
-    places.set(id, place);
-    // A town can have several separate pieces; keep the biggest outline for its label.
-    if (city >= 0) {
-      const old = outlineOf.get(city);
-      if (!old || (old.bbox[2] - old.bbox[0]) * (old.bbox[3] - old.bbox[1]) < (bx1 - bx0) * (by1 - by0)) outlineOf.set(city, place);
-    }
-  }
-  // The point inside the shape that is farthest from its edges, found on a coarse grid; that's where the name goes.
-  function interiorPoint(rings, [x0, y0, x1, y1]) {
-    const inside = (x, y) => {
-      let c = false;
-      for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-        const [xi, yi] = r[i], [xj, yj] = r[j];
-        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
-      }
-      return c;
-    };
-    const edgeDist = (x, y) => {
-      let m = Infinity;
-      for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-        const [ax, ay] = r[j], [bx, by] = r[i], dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
-        const t = l ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l)) : 0;
-        m = Math.min(m, (ax + t * dx - x) ** 2 + (ay + t * dy - y) ** 2);
-      }
-      return m;
-    };
-    let best = [(x0 + x1) / 2, (y0 + y1) / 2], bd = -1;
-    const n = 14;
-    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
-      const x = x0 + (x1 - x0) * (a + .5) / n, y = y0 + (y1 - y0) * (b + .5) / n;
-      if (!inside(x, y)) continue;
-      const d = edgeDist(x, y); if (d > bd) { bd = d; best = [x, y]; }
-    }
-    return best;
-  }
 
   readColors();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); });
