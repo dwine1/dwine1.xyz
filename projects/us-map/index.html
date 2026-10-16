@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>US Map · dwine1.xyz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: header, a control row (search, zoom buttons, label count), then one canvas map that zooms and pans. */
+  :root {
+    --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
+    --accent: #2b4fd8; --accent-soft: #e2e8fd;
+    --water: #dfe8f1; --land: #fbfaf6; --border: #9aa7b5; --dot: #33414f; --capital: #d8452b; --halo: #fbfaf6;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+      --accent: #8ea6ff; --accent-soft: #1d2848;
+      --water: #0b1118; --land: #1a222c; --border: #4a5867; --dot: #c9d3de; --capital: #ff7a5c; --halo: #1a222c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --surface: #161d25; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c;
+    --accent: #8ea6ff; --accent-soft: #1d2848;
+    --water: #0b1118; --land: #1a222c; --border: #4a5867; --dot: #c9d3de; --capital: #ff7a5c; --halo: #1a222c;
+    color-scheme: dark;
+  }
+
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 124rem; margin: 0 auto; padding-block: 2rem 3rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 1.25rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; justify-self: start; }
+  .back:hover { text-decoration: underline; }
+  header { display: grid; gap: .5rem; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; letter-spacing: -.02em; }
+  .lede { margin: 0; color: var(--muted); max-width: 46rem; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+  button {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface); cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem; min-width: 2.4rem;
+  }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, .search input:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .search { position: relative; flex: 1 1 16rem; min-width: 0; max-width: 28rem; }
+  .search input {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem;
+  }
+  .options {
+    position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: .25rem;
+    list-style: none; max-height: min(22rem, 60vh); overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(15, 20, 26, .15);
+  }
+  .options[hidden] { display: none; }
+  .options li { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem .6rem; border-radius: 5px; cursor: pointer; }
+  .options li[aria-selected="true"] { background: var(--accent-soft); }
+  .options .o-name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+  .options .o-pop { font-family: var(--mono); font-size: .75rem; color: var(--muted); white-space: nowrap; }
+  .options .o-none { color: var(--muted); cursor: default; }
+  .zoom { display: flex; gap: .35rem; }
+  .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-left: auto; }
+
+  .map {
+    position: relative; height: clamp(22rem, min(74vh, 100vw), 60rem); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; background: var(--water);
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  .tip {
+    position: absolute; z-index: 3; pointer-events: none; transform: translate(-50%, calc(-100% - 12px));
+    background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: .35rem .6rem;
+    box-shadow: 0 6px 20px rgba(15, 20, 26, .18); white-space: nowrap; font-size: .9rem;
+  }
+  .tip[hidden] { display: none; }
+  .tip b { display: block; }
+  .tip span { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  .error { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem; text-align: center; color: var(--muted); }
+  .error[hidden] { display: none; }
+  .note { margin: 0; font-size: .8rem; color: var(--muted); }
+  .note a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← dwine1.xyz</a>
+  <header>
+    <h1>US Map</h1>
+    <p class="lede">Every US city and town with at least 1,000 people. Bigger cities are named first; zoom in and smaller towns get their names as room opens up, so every name you see is full size.</p>
+  </header>
+
+  <div class="controls">
+    <div class="search">
+      <input id="q" type="search" placeholder="Find a city…" autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="false" aria-controls="opts" aria-autocomplete="list" aria-label="Find a city">
+      <ul class="options" id="opts" role="listbox" hidden></ul>
+    </div>
+    <div class="zoom">
+      <button id="zin" type="button" aria-label="Zoom in">+</button>
+      <button id="zout" type="button" aria-label="Zoom out">−</button>
+      <button id="reset" type="button">Whole country</button>
+    </div>
+    <span class="count" id="count" aria-live="polite"></span>
+  </div>
+
+  <div class="map" id="map">
+    <canvas id="cv" tabindex="0" aria-label="Map of the United States with city names. Scroll or pinch to zoom, drag to move."></canvas>
+    <div class="tip" id="tip" hidden></div>
+    <div class="error" id="err" hidden>The map data didn't load. Check your connection and refresh the page.</div>
+  </div>
+
+  <p class="note">Scroll, pinch or double-click to zoom, drag to move, tap a dot for its population. Red squares are state capitals.
+    State shapes from the US Census Bureau via <a href="https://github.com/topojson/us-atlas">us-atlas</a>; cities and populations from <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0).</p>
+</div>
+
+<script src="us-map-data.js?v=1"></script>
+<script>
+(() => {
+  const W = 975, H = 610;            // world box of the projected data
+  const MIN_K = 1, MAX_K = 90;
+  const $ = id => document.getElementById(id);
+  const cv = $("cv"), ctx = cv.getContext("2d"), mapEl = $("map"), tip = $("tip");
+
+  const D = window.US_MAP_DATA;
+  if (!D || !Array.isArray(D.cities)) { $("err").hidden = false; return; }
+
+  // Cities are already sorted by population, biggest first: that order is the label priority.
+  const N = D.cities.length;
+  const name = [], st = [], pop = new Uint32Array(N), cx = new Float32Array(N), cy = new Float32Array(N), cap = new Uint8Array(N);
+  D.cities.forEach((c, i) => { name[i] = c[0]; st[i] = c[1]; pop[i] = c[2]; cx[i] = c[3] / 20; cy[i] = c[4] / 20; cap[i] = c[5]; });
+  const statePaths = D.states.map(s => new Path2D(s.d));
+  const borderPath = new Path2D(D.borders), nationPath = new Path2D(D.nation);
+
+  // Label size tiers, in CSS pixels; the smallest is still 12.5px.
+  const tierOf = i => pop[i] >= 1e6 ? 0 : pop[i] >= 2e5 ? 1 : pop[i] >= 5e4 ? 2 : 3;
+  const FONTS = [
+    '700 15px "Atkinson Hyperlegible", system-ui, sans-serif',
+    '700 13.5px "Atkinson Hyperlegible", system-ui, sans-serif',
+    '400 13px "Atkinson Hyperlegible", system-ui, sans-serif',
+    '400 12.5px "Atkinson Hyperlegible", system-ui, sans-serif',
+  ];
+  const FONT_H = [15, 13.5, 13, 12.5];
+  const tier = new Uint8Array(N); for (let i = 0; i < N; i++) tier[i] = tierOf(i);
+  let widths = null;                  // measured once fonts are ready
+  function measure() {
+    widths = new Float32Array(N);
+    let f = -1;
+    for (let i = 0; i < N; i++) { if (tier[i] !== f) { f = tier[i]; ctx.font = FONTS[f]; } widths[i] = ctx.measureText(name[i]).width; }
+  }
+
+  let colors = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["water", "land", "border", "dot", "capital", "halo", "fg", "muted", "accent"]) colors[k] = cs.getPropertyValue("--" + k).trim();
+  }
+
+  // View: world point (x, y) shows at screen (ox + x*s, oy + y*s), s = base*k.
+  let vw = 0, vh = 0, dpr = 1, base = 1, k = 1, tx = 0, ty = 0;
+  let selected = -1, hover = -1, placed = [];
+  const s = () => base * k;
+
+  function resize() {
+    const r = mapEl.getBoundingClientRect();
+    const keepCenter = vw ? toWorld(vw / 2, vh / 2) : null;
+    vw = r.width; vh = r.height; dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr);
+    base = Math.min(vw / W, vh / H) * 0.96;
+    if (keepCenter) centerOn(keepCenter[0], keepCenter[1]); else fit();
+    draw();
+  }
+  function fit() { k = 1; tx = (vw - W * base) / 2; ty = (vh - H * base) / 2; }
+  function toWorld(px, py) { return [(px - tx) / s(), (py - ty) / s()]; }
+  function centerOn(x, y) { tx = vw / 2 - x * s(); ty = vh / 2 - y * s(); clampPan(); }
+  function clampPan() {
+    const sc = s(), mw = W * sc, mh = H * sc, m = 60;
+    tx = mw < vw ? Math.min(Math.max(tx, -mw * 0.25), vw - mw * 0.75) : Math.min(Math.max(tx, vw - mw - m), m);
+    ty = mh < vh ? Math.min(Math.max(ty, -mh * 0.25), vh - mh * 0.75) : Math.min(Math.max(ty, vh - mh - m), m);
+  }
+  function zoomAt(px, py, nk) {
+    nk = Math.min(MAX_K, Math.max(MIN_K, nk));
+    const [wx, wy] = toWorld(px, py);
+    k = nk; tx = px - wx * s(); ty = py - wy * s(); clampPan();
+  }
+
+  // Smooth view changes for buttons and search.
+  let anim = null;
+  function animateTo(nk, wx, wy, ms = 450) {
+    nk = Math.min(MAX_K, Math.max(MIN_K, nk));
+    const k0 = k, [x0, y0] = toWorld(vw / 2, vh / 2), t0 = performance.now();
+    cancelAnimationFrame(anim);
+    const step = now => {
+      const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      k = k0 * Math.pow(nk / k0, e);
+      centerOn(x0 + (wx - x0) * e, y0 + (wy - y0) * e);
+      draw();
+      if (t < 1) anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+
+  let frame = 0;
+  function draw() { if (!frame) frame = requestAnimationFrame(render); }
+
+  function render() {
+    frame = 0;
+    if (!widths) measure();
+    const sc = s();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = colors.water; ctx.fillRect(0, 0, vw, vh);
+
+    ctx.setTransform(dpr * sc, 0, 0, dpr * sc, dpr * tx, dpr * ty);
+    ctx.fillStyle = colors.land;
+    for (const p of statePaths) ctx.fill(p);
+    ctx.strokeStyle = colors.border; ctx.lineJoin = "round";
+    ctx.lineWidth = 0.8 / sc; ctx.stroke(borderPath);
+    ctx.lineWidth = 1.1 / sc; ctx.stroke(nationPath);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Greedy label placement: biggest city first, each label tries four spots around its dot and
+    // takes the first one that overlaps nothing already placed. A coarse grid keeps the overlap test fast.
+    const CELL = 48, cols = Math.ceil(vw / CELL) + 1, rows = Math.ceil(vh / CELL) + 1;
+    const grid = new Array(cols * rows);
+    const boxes = [];
+    const hit = (x0, y0, x1, y1) => {
+      if (x0 < 2 || y0 < 2 || x1 > vw - 2 || y1 > vh - 2) return true;
+      const c0 = Math.floor(x0 / CELL), c1 = Math.floor(x1 / CELL), r0 = Math.floor(y0 / CELL), r1 = Math.floor(y1 / CELL);
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        const list = grid[r * cols + c]; if (!list) continue;
+        for (const b of list) { const q = boxes[b]; if (x0 < q[2] && x1 > q[0] && y0 < q[3] && y1 > q[1]) return true; }
+      }
+      return false;
+    };
+    const add = (x0, y0, x1, y1) => {
+      const id = boxes.push([x0, y0, x1, y1]) - 1;
+      const c0 = Math.max(0, Math.floor(x0 / CELL)), c1 = Math.min(cols - 1, Math.floor(x1 / CELL));
+      const r0 = Math.max(0, Math.floor(y0 / CELL)), r1 = Math.min(rows - 1, Math.floor(y1 / CELL));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) (grid[r * cols + c] ||= []).push(id);
+    };
+
+    const labels = [], dots = [];
+    let inView = 0;
+    const tryLabel = i => {
+      const x = tx + cx[i] * sc, y = ty + cy[i] * sc;
+      const w = widths[i], h = FONT_H[tier[i]], pad = 2, g = i === selected ? 10 : 5;
+      const spots = [[x + g, y - h / 2], [x - g - w, y - h / 2], [x - w / 2, y - g - h], [x - w / 2, y + g]];
+      for (const [lx, ly] of spots) {
+        if (!hit(lx - pad, ly - pad, lx + w + pad, ly + h + pad)) {
+          add(lx - pad, ly - pad, lx + w + pad, ly + h + pad);
+          add(x - 3, y - 3, x + 3, y + 3);
+          labels.push([i, lx, ly]);
+          return true;
+        }
+      }
+      return false;
+    };
+    if (selected >= 0) tryLabel(selected);
+    for (let i = 0; i < N; i++) {
+      const x = tx + cx[i] * sc, y = ty + cy[i] * sc;
+      if (x < -4 || y < -4 || x > vw + 4 || y > vh + 4) continue;
+      inView++;
+      if (i === selected) continue;
+      if (!tryLabel(i)) dots.push(i);
+    }
+
+    // Unnamed towns in view show as small dots so you can see where more names are waiting.
+    const r0 = Math.min(1.6, 0.6 + k * 0.08);
+    ctx.globalAlpha = k < 2.5 ? 0.25 : 0.45; ctx.fillStyle = colors.dot;
+    ctx.beginPath();
+    for (const i of dots) { const x = tx + cx[i] * sc, y = ty + cy[i] * sc; ctx.moveTo(x + r0, y); ctx.arc(x, y, r0, 0, 6.2832); }
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    for (const [i] of labels) {
+      const x = tx + cx[i] * sc, y = ty + cy[i] * sc, r = tier[i] === 0 ? 3.6 : tier[i] === 1 ? 3 : 2.4;
+      if (cap[i]) { ctx.fillStyle = colors.capital; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+      else { ctx.fillStyle = colors.dot; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); }
+    }
+    ctx.textBaseline = "top"; ctx.lineJoin = "round"; ctx.lineWidth = 3.5; ctx.strokeStyle = colors.halo;
+    let f = -1;
+    for (const [i, lx, ly] of labels) {
+      if (tier[i] !== f) { f = tier[i]; ctx.font = FONTS[f]; }
+      ctx.fillStyle = i === selected ? colors.accent : colors.fg;
+      ctx.strokeText(name[i], lx, ly); ctx.fillText(name[i], lx, ly);
+    }
+    if (selected >= 0) {
+      const x = tx + cx[selected] * sc, y = ty + cy[selected] * sc;
+      ctx.strokeStyle = colors.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832); ctx.stroke();
+    }
+
+    placed = labels.map(l => l[0]).concat(dots);
+    $("count").textContent = `${labels.length.toLocaleString()} of ${inView.toLocaleString()} cities in view named` +
+      (labels.length < inView ? " · zoom in for more" : "");
+    positionTip();
+  }
+
+  // Hover and tap: nearest drawn city within reach.
+  function nearest(px, py, reach = 12) {
+    const sc = s(); let best = -1, bd = reach * reach;
+    for (const i of placed) {
+      const dx = tx + cx[i] * sc - px, dy = ty + cy[i] * sc - py, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  let tipCity = -1;
+  function showTip(i) { tipCity = i; positionTip(); }
+  function positionTip() {
+    if (tipCity < 0) { tip.hidden = true; return; }
+    const x = tx + cx[tipCity] * s(), y = ty + cy[tipCity] * s();
+    if (x < 0 || y < 0 || x > vw || y > vh) { tip.hidden = true; return; }
+    tip.innerHTML = "";
+    const b = document.createElement("b"); b.textContent = `${name[tipCity]}, ${st[tipCity]}`;
+    const sp = document.createElement("span"); sp.textContent = `${pop[tipCity].toLocaleString()} people${cap[tipCity] ? " · state capital" : ""}`;
+    tip.append(b, sp);
+    tip.hidden = false;
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(x, tw / 2 + 6), vw - tw / 2 - 6) + "px";
+    tip.style.top = Math.max(y, tip.offsetHeight + 16) + "px";
+  }
+
+  // Pointer input: one finger or mouse pans, two fingers pinch.
+  const pts = new Map();
+  let moved = false, pinch = null, lastTap = 0;
+  const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener("pointerdown", e => {
+    cv.setPointerCapture(e.pointerId); cancelAnimationFrame(anim);
+    pts.set(e.pointerId, local(e)); moved = false;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 };
+    }
+    cv.classList.add("dragging");
+  });
+  cv.addEventListener("pointermove", e => {
+    const p = local(e);
+    if (!pts.has(e.pointerId)) {
+      if (e.pointerType === "mouse") { const i = nearest(p[0], p[1]); if (i !== hover) { hover = i; showTip(i >= 0 ? i : selected); } }
+      return;
+    }
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, p);
+    if (pts.size === 2 && pinch) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      tx += mx - pinch.mx; ty += my - pinch.my; pinch.mx = mx; pinch.my = my;
+      zoomAt(mx, my, pinch.k * d / pinch.d); moved = true; draw();
+    } else if (pts.size === 1) {
+      const dx = p[0] - prev[0], dy = p[1] - prev[1];
+      if (Math.abs(dx) + Math.abs(dy) > 0) {
+        if (moved || Math.hypot(dx, dy) > 3) moved = true;
+        tx += dx; ty += dy; clampPan(); draw();
+      }
+    }
+  });
+  const end = e => {
+    if (!pts.has(e.pointerId)) return;
+    const p = local(e); pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (!pts.size) cv.classList.remove("dragging");
+    if (!moved && e.type === "pointerup") {
+      const now = performance.now();
+      if (e.pointerType !== "mouse" && now - lastTap < 300) { animateTo(k * 2, ...toWorld(p[0], p[1]), 300); lastTap = 0; return; }
+      lastTap = now;
+      const i = nearest(p[0], p[1], e.pointerType === "mouse" ? 12 : 20);
+      selected = i; showTip(i); draw();
+    }
+  };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+  cv.addEventListener("pointerleave", () => { if (hover >= 0) { hover = -1; showTip(selected); } });
+  cv.addEventListener("wheel", e => {
+    e.preventDefault(); cancelAnimationFrame(anim);
+    const [px, py] = local(e);
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(px, py, k * Math.exp(-dy * 0.0015)); draw();
+  }, { passive: false });
+  cv.addEventListener("dblclick", e => { const [px, py] = local(e); animateTo(k * 2, ...toWorld(px, py), 300); });
+  cv.addEventListener("keydown", e => {
+    const c = toWorld(vw / 2, vh / 2), step = 80 / s();
+    const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (e.key === "+" || e.key === "=") animateTo(k * 1.8, ...c, 250);
+    else if (e.key === "-" || e.key === "_") animateTo(k / 1.8, ...c, 250);
+    else if (moves[e.key]) { centerOn(c[0] + moves[e.key][0], c[1] + moves[e.key][1]); draw(); }
+    else return;
+    e.preventDefault();
+  });
+
+  $("zin").onclick = () => animateTo(k * 1.8, ...toWorld(vw / 2, vh / 2), 300);
+  $("zout").onclick = () => animateTo(k / 1.8, ...toWorld(vw / 2, vh / 2), 300);
+  $("reset").onclick = () => { selected = -1; showTip(-1); animateTo(1, W / 2, H / 2); };
+
+  // City search: prefix matches first, then names containing the text; bigger places first in each group.
+  const fold = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const folded = name.map(n => fold(n));
+  const q = $("q"), opts = $("opts");
+  let results = [], active = 0;
+  function search() {
+    const t = fold(q.value.trim().replace(/,\s*[a-z]{2}$/i, ""));
+    const stWant = (q.value.match(/,\s*([a-z]{2})\s*$/i) || [])[1];
+    results = [];
+    if (t) {
+      const pre = [], mid = [];
+      for (let i = 0; i < N && pre.length < 12; i++) {
+        if (stWant && st[i].toLowerCase() !== stWant.toLowerCase()) continue;
+        const at = folded[i].indexOf(t);
+        if (at === 0) pre.push(i); else if (at > 0 && mid.length < 12) mid.push(i);
+      }
+      results = pre.concat(mid).slice(0, 12);
+    }
+    active = 0; renderOpts();
+  }
+  function renderOpts() {
+    opts.innerHTML = "";
+    if (!q.value.trim()) { opts.hidden = true; q.setAttribute("aria-expanded", "false"); return; }
+    if (!results.length) {
+      const li = document.createElement("li"); li.className = "o-none"; li.textContent = "No city with that name";
+      opts.append(li);
+    }
+    results.forEach((i, n) => {
+      const li = document.createElement("li");
+      li.id = "opt" + n; li.setAttribute("role", "option"); li.setAttribute("aria-selected", n === active);
+      const a = document.createElement("span"); a.className = "o-name"; a.textContent = `${name[i]}, ${st[i]}`;
+      const b = document.createElement("span"); b.className = "o-pop"; b.textContent = pop[i].toLocaleString();
+      li.append(a, b);
+      li.addEventListener("pointerdown", e => { e.preventDefault(); choose(i); });
+      opts.append(li);
+    });
+    opts.hidden = false; q.setAttribute("aria-expanded", "true");
+    if (results.length) q.setAttribute("aria-activedescendant", "opt" + active); else q.removeAttribute("aria-activedescendant");
+  }
+  function choose(i) {
+    selected = i; q.value = `${name[i]}, ${st[i]}`; opts.hidden = true; q.setAttribute("aria-expanded", "false");
+    const nk = Math.max(k, pop[i] >= 1e6 ? 6 : pop[i] >= 1e5 ? 10 : 18);
+    animateTo(nk, cx[i], cy[i], 650);
+    showTip(i);
+  }
+  q.addEventListener("input", search);
+  q.addEventListener("focus", () => { if (q.value.trim()) search(); });
+  q.addEventListener("blur", () => { opts.hidden = true; q.setAttribute("aria-expanded", "false"); });
+  q.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (!results.length) return;
+      e.preventDefault(); active = (active + (e.key === "ArrowDown" ? 1 : -1) + results.length) % results.length; renderOpts();
+      document.getElementById("opt" + active)?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { if (results[active] !== undefined) { e.preventDefault(); choose(results[active]); } }
+    else if (e.key === "Escape") { opts.hidden = true; q.setAttribute("aria-expanded", "false"); }
+  });
+
+  readColors();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); });
+  new ResizeObserver(resize).observe(mapEl);
+  document.fonts?.ready.then(() => { widths = null; draw(); });
+})();
+</script>
+</body>
+</html>
