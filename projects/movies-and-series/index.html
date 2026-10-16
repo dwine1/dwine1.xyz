@@ -9,7 +9,7 @@
 <title>Movies and Series · dwine1.xyz</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-  /* Layout: back link and title, a stats strip, My favourites, then four columns on wide screens: the add/edit form, the filterable list, the All titles table and the Must watch list. Narrower screens move the right-hand panels below; phones stack everything. */
+  /* Layout: back link and title, a stats strip, My favourites, then four columns on wide screens: the add/edit form, the filterable list, the All titles table and the Must have list. Narrower screens move the right-hand panels below; phones stack everything. */
   :root {
     --bg: #eef1f4; --surface: #ffffff; --fg: #16202b; --muted: #5b6876; --line: #d3dae2;
     --accent: #2b4fd8; --accent-soft: #e2e8fd;
@@ -58,7 +58,7 @@
   .stat b { font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .stat span { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
-  /* Wide: form | list | all titles | must watch. Narrower screens move the right-hand panels below. */
+  /* Wide: form | list | all titles | must have. Narrower screens move the right-hand panels below. */
   .layout { display: grid; gap: 1.5rem; align-items: start;
     grid-template-columns: minmax(0, 21rem) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 18rem);
     grid-template-areas: "form list table must"; }
@@ -67,7 +67,7 @@
   @media (max-width: 80rem) { .layout { grid-template-columns: minmax(0, 21rem) minmax(0, 1fr); grid-template-areas: "form list" "must must" "table table"; } }
   @media (max-width: 52rem) { .layout { grid-template-columns: 1fr; grid-template-areas: "form" "list" "must" "table"; } }
 
-  /* Must watch list */
+  /* Must have list */
   .must-panel h2 .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-left: .35rem; }
   .must-list { list-style: none; margin: 0; padding: 0; display: grid; }
   .must-list li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--line); }
@@ -241,7 +241,7 @@
               <option value="watching">Watching</option>
               <option value="watched" selected>Watched</option>
               <option value="fav">Favourite</option>
-              <option value="must">Must watch</option>
+              <option value="must">Must have</option>
             </select>
           </label>
           <label>Year
@@ -303,9 +303,9 @@
     </section>
 
     <section class="panel must-panel" aria-labelledby="must-title">
-      <h2 id="must-title">Must watch<span class="count" id="must-count"></span></h2>
+      <h2 id="must-title">Must have<span class="count" id="must-count"></span></h2>
       <ul class="must-list" id="must-list"></ul>
-      <p class="empty" id="must-empty" hidden>Choose “Must watch” as the status when you add a title, or tap ⚑ on any title in your list.</p>
+      <p class="empty" id="must-empty" hidden>Choose “Must have” as the status when you add a title, or tap ⚑ on any title in your list.</p>
     </section>
 
     <section class="panel table-panel" aria-labelledby="table-title">
@@ -544,7 +544,7 @@
   });
 
   // "Favourite" in a status menu means a watched title that is in My favourites;
-  // "Must watch" means a planned title that is on the Must watch list.
+  // "Must have" means a planned title that is on the Must have list.
   function statusValue(it) { return it.fav && it.status === "watched" ? "fav" : it.must && it.status === "plan" ? "must" : it.status; }
   function statusMatch(it, f) { return f === "all" || (f === "fav" ? it.fav : f === "must" ? it.must : it.status === f); }
   function setStatus(it, v) {
@@ -557,14 +557,14 @@
   function flag(it) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "flag"; b.textContent = "⚑";
-    b.title = it.must ? "On your Must watch list" : "Add to Must watch";
+    b.title = it.must ? "On your Must have list" : "Add to Must have";
     b.setAttribute("aria-pressed", String(it.must));
-    b.setAttribute("aria-label", it.must ? `Remove ${it.title} from Must watch` : `Add ${it.title} to Must watch`);
+    b.setAttribute("aria-label", it.must ? `Remove ${it.title} from Must have` : `Add ${it.title} to Must have`);
     b.onclick = () => {
       it.must = !it.must;
       if (it.must && it.status === "watched") it.status = "plan";
       touch(it);
-      toast(it.must ? `Added “${it.title}” to Must watch` : `Removed “${it.title}” from Must watch`);
+      toast(it.must ? `Added “${it.title}” to Must have` : `Removed “${it.title}” from Must have`);
     };
     return b;
   }
@@ -590,7 +590,7 @@
       done.title = "Mark as watched"; done.setAttribute("aria-label", `Mark ${it.title} as watched`);
       done.onclick = () => { setStatus(it, "watched"); touch(it); toast(`Marked “${it.title}” as watched`); };
       const rm = document.createElement("button"); rm.type = "button"; rm.textContent = "✕";
-      rm.title = "Remove from Must watch"; rm.setAttribute("aria-label", `Remove ${it.title} from Must watch`);
+      rm.title = "Remove from Must have"; rm.setAttribute("aria-label", `Remove ${it.title} from Must have`);
       rm.onclick = () => { it.must = false; touch(it); };
       acts.append(done, rm);
       li.append(pic, txt, acts);
@@ -779,7 +779,7 @@
     items.forEach(i => { c[i.type]++; c[i.status]++; if (i.fav) c.fav++; if (i.must) c.must++; });
     const stats = $("stats");
     stats.textContent = "";
-    [["Titles", c.all], ["Plan to watch", c.plan], ["Watching", c.watching], ["Watched", c.watched], ["Favourites", c.fav], ["Must watch", c.must]].forEach(([l, n]) => {
+    [["Titles", c.all], ["Plan to watch", c.plan], ["Watching", c.watching], ["Watched", c.watched], ["Favourites", c.fav], ["Must have", c.must]].forEach(([l, n]) => {
       const d = document.createElement("div"); d.className = "stat";
       d.innerHTML = "<b></b><span></span>";
       d.querySelector("b").textContent = n; d.querySelector("span").textContent = l;
@@ -797,7 +797,7 @@
       if (typeFilter === "all" || i.type === typeFilter) { sc.all++; sc[i.status]++; if (i.fav) sc.fav++; if (i.must) sc.must++; }
     });
     chips($("type-chips"), [["all", "All types"], ["movie", "Movies"], ["series", "Series"]], typeFilter, tc, v => { typeFilter = v; render(); });
-    chips($("status-chips"), [["all", "Any status"], ...Object.entries(STATUS), ["fav", "Favourites"], ["must", "Must watch"]], statusFilter, sc, v => { statusFilter = v; render(); });
+    chips($("status-chips"), [["all", "Any status"], ...Object.entries(STATUS), ["fav", "Favourites"], ["must", "Must have"]], statusFilter, sc, v => { statusFilter = v; render(); });
 
     const q = $("q").value.trim().toLowerCase();
     const shown = items.filter(i =>
@@ -895,7 +895,7 @@
     const act = document.createElement("div"); act.className = "actions";
     const sel = document.createElement("select");
     sel.setAttribute("aria-label", `Status of ${it.title}`);
-    [...Object.entries(STATUS), ["fav", "Favourite"], ["must", "Must watch"]].forEach(([v, l]) => sel.add(new Option(l, v, false, v === statusValue(it))));
+    [...Object.entries(STATUS), ["fav", "Favourite"], ["must", "Must have"]].forEach(([v, l]) => sel.add(new Option(l, v, false, v === statusValue(it))));
     sel.onchange = () => { setStatus(it, sel.value); touch(it); };
     act.appendChild(sel);
     if (it.type === "series") {
