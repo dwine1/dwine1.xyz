@@ -70,7 +70,11 @@
   /* Must have list */
   .must-panel h2 .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-left: .35rem; }
   .must-list { list-style: none; margin: 0; padding: 0; display: grid; }
-  .must-list li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+  .must-list li { display: grid; grid-template-columns: auto 1.4rem 2.6rem minmax(0, 1fr) auto; gap: .5rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .must-list li.dragging { position: relative; z-index: 2; box-shadow: 0 6px 18px rgb(0 0 0 / .18); border-radius: 6px; opacity: .95; }
+  .must-list .grip { touch-action: none; cursor: grab; border: 0; background: none; color: var(--muted); font-size: 1rem; line-height: 1; padding: .4rem .15rem; min-height: 2rem; letter-spacing: -.15em; }
+  .must-list .grip:active { cursor: grabbing; }
+  .must-list .rank { font-family: var(--mono); font-size: .85rem; font-weight: 500; color: var(--plan); text-align: right; font-variant-numeric: tabular-nums; }
   .must-list .pic { width: 2.6rem; height: 3.8rem; object-fit: cover; border-radius: 4px; background: var(--accent-soft); display: grid; place-items: center; font-family: var(--display); color: var(--accent); }
   .must-list .t { font-size: .92rem; line-height: 1.25; overflow-wrap: anywhere; }
   .must-list .s { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
@@ -381,6 +385,7 @@
       cast: String(x.cast || "").slice(0, 200),
       fav: x.fav === true,
       must: x.must === true && x.status !== "watched",
+      mustOrder: x.must === true && x.status !== "watched" && Number(x.mustOrder) > 0 ? Number(x.mustOrder) : 0,
       added: Number(x.added) || now,
       updated: Number(x.updated) || Number(x.added) || now,
     };
@@ -572,11 +577,31 @@
   function renderMust() {
     const list = $("must-list");
     list.textContent = "";
-    const must = items.filter(i => i.must).sort((a, b) => a.added - b.added);
+    // Saved order first; titles added to the list since then go to the bottom in the order they were added.
+    items.forEach(i => { if (!i.must) i.mustOrder = 0; });
+    const key = i => i.mustOrder > 0 ? i.mustOrder : 1e15 + i.added;
+    const must = items.filter(i => i.must).sort((a, b) => key(a) - key(b));
+    must.forEach((it, n) => { it.mustOrder = n + 1; });
     $("must-count").textContent = must.length ? must.length : "";
     $("must-empty").hidden = must.length > 0;
-    must.forEach(it => {
+    must.forEach((it, n) => {
       const li = document.createElement("li");
+      li.dataset.id = it.id;
+      const grip = document.createElement("button");
+      grip.type = "button"; grip.className = "grip"; grip.textContent = "⋮⋮";
+      grip.title = "Drag to reorder";
+      grip.setAttribute("aria-label", `Move ${it.title}. Drag, or use the up and down arrow keys.`);
+      grip.addEventListener("pointerdown", e => startDrag(e, li));
+      grip.addEventListener("keydown", e => {
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault();
+        const sib = e.key === "ArrowUp" ? li.previousElementSibling : li.nextElementSibling;
+        if (!sib) return;
+        e.key === "ArrowUp" ? sib.before(li) : sib.after(li);
+        saveMustOrder();
+        $("must-list").querySelector(`li[data-id="${CSS.escape(it.id)}"] .grip`)?.focus();
+      });
+      const rank = document.createElement("span"); rank.className = "rank"; rank.textContent = n + 1;
       let pic;
       if (it.poster) { pic = document.createElement("img"); pic.src = it.poster; pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer"; }
       else { pic = document.createElement("span"); pic.textContent = it.title.charAt(0).toUpperCase(); }
@@ -591,11 +616,51 @@
       done.onclick = () => { setStatus(it, "watched"); touch(it); toast(`Marked “${it.title}” as watched`); };
       const rm = document.createElement("button"); rm.type = "button"; rm.textContent = "✕";
       rm.title = "Remove from Must have"; rm.setAttribute("aria-label", `Remove ${it.title} from Must have`);
-      rm.onclick = () => { it.must = false; touch(it); };
+      rm.onclick = () => { it.must = false; it.mustOrder = 0; touch(it); };
       acts.append(done, rm);
-      li.append(pic, txt, acts);
+      li.append(grip, rank, pic, txt, acts);
       list.appendChild(li);
     });
+  }
+
+  // Reads the list's order from the page and saves it as each title's Must have number.
+  function saveMustOrder() {
+    [...$("must-list").children].forEach((li, n) => {
+      const it = items.find(i => i.id === li.dataset.id);
+      if (it) it.mustOrder = n + 1;
+    });
+    save();
+    render();
+  }
+
+  // Drag with mouse, pen or finger: the row follows the pointer and swaps places as it passes other rows.
+  function startDrag(e, li) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const grip = e.currentTarget;
+    grip.setPointerCapture(e.pointerId);
+    let lastY = e.clientY, offset = 0;
+    li.classList.add("dragging");
+    const move = ev => {
+      offset += ev.clientY - lastY; lastY = ev.clientY;
+      for (;;) {
+        const prev = li.previousElementSibling, next = li.nextElementSibling;
+        if (prev && offset < -prev.offsetHeight / 2) { offset += prev.offsetHeight; prev.before(li); }
+        else if (next && offset > next.offsetHeight / 2) { offset -= next.offsetHeight; next.after(li); }
+        else break;
+      }
+      li.style.transform = `translateY(${offset}px)`;
+    };
+    const end = () => {
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", end);
+      grip.removeEventListener("pointercancel", end);
+      li.classList.remove("dragging"); li.style.transform = "";
+      saveMustOrder();
+    };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", end);
+    grip.addEventListener("pointercancel", end);
   }
 
   // ----- Poster and IMDb search -----
