@@ -348,7 +348,7 @@
     const LIMIT = 6000;
     let body = notesText();
     if (body.length > LIMIT) body = body.slice(0, LIMIT) + "\n\n… (shortened; use the PDF or Text file button for everything)";
-    location.href = `mailto:erenkymz@gmail.com?subject=${encodeURIComponent(`My notes (${stamp()})`)}&body=${encodeURIComponent(body)}`;
+    location.href = `mailto:?subject=${encodeURIComponent(`My notes (${stamp()})`)}&body=${encodeURIComponent(body)}`;
   };
   if (navigator.share) {
     $("share").hidden = false;
