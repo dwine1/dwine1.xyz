@@ -47,6 +47,9 @@
   button:hover { filter: brightness(.96); }
   .tools { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
   .tools input { flex: 1 1 12rem; width: auto; }
+  .export .label { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .export .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 .25rem; }
+  button:disabled { opacity: .6; cursor: progress; }
   .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
   li.note { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .9rem 1rem; display: grid; gap: .4rem; }
@@ -66,7 +69,7 @@
     <a class="back" href="../../index.html">← All projects</a>
     <header>
       <h1>Notes</h1>
-      <p class="lede">Write a note, save it, and find it later. Notes stay in this browser; use Export to back them up.</p>
+      <p class="lede">Write a note, save it, and find it later. Notes stay in this browser; use Backup to keep a copy you can import later.</p>
     </header>
     <main>
       <form id="form" autocomplete="off">
@@ -81,7 +84,15 @@
 
       <div class="tools">
         <input id="search" type="search" placeholder="Search notes" aria-label="Search notes">
-        <button type="button" id="export">Export</button>
+      </div>
+      <div class="tools export" role="group" aria-labelledby="exportLabel">
+        <span class="label" id="exportLabel">Export all</span>
+        <button type="button" id="dl-pdf">PDF</button>
+        <button type="button" id="dl-txt">Text file</button>
+        <button type="button" id="email">Email</button>
+        <button type="button" id="share" hidden>Share…</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" id="export" title="Backup file you can import later">Backup</button>
         <button type="button" id="import">Import</button>
         <input type="file" id="file" accept="application/json,.json" hidden>
       </div>
@@ -111,7 +122,7 @@
     catch { toast("Could not save in this browser. Use Export to keep a copy."); }
   }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const fmt = t => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const fmt = t => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" });
 
   function highlight(el, text, q) {
     el.textContent = "";
@@ -236,6 +247,137 @@
       toast(`Imported ${added} new note${added === 1 ? "" : "s"}.`);
     } catch { toast("That file isn't a notes export."); }
   };
+
+  // ---- Export all: PDF, text, email, share ----
+  const CDN = "https://cdn.jsdelivr.net/npm/";
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  const newestFirst = () => [...notes].sort((a, b) => b.created - a.created);
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = () => { s.remove(); reject(new Error(src)); };
+      document.head.append(s);
+    });
+  }
+  function needNotes() {
+    if (notes.length) return true;
+    toast("There are no notes to export yet."); return false;
+  }
+  async function busy(btn, fn) {
+    if (!needNotes()) return;
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Preparing…";
+    try { await fn(); }
+    catch (err) { if (err && err.name !== "AbortError") toast("Couldn't make the file. Check your connection and try again."); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  }
+  function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function notesText() {
+    const out = [`Notes · ${notes.length} note${notes.length === 1 ? "" : "s"} · exported ${fmt(Date.now())}`, ""];
+    for (const n of newestFirst()) {
+      out.push("────────────────────", n.title || "Untitled", fmt(n.created) + (n.updated && n.updated !== n.created ? ` (edited ${fmt(n.updated)})` : ""), "");
+      if (n.body) out.push(n.body, "");
+    }
+    return out.join("\n");
+  }
+
+  let pdfFont;
+  async function loadPdfFont() {
+    // DejaVu covers Turkish and other accented letters that the built-in PDF fonts lack.
+    if (pdfFont === undefined) {
+      try {
+        const res = await fetch(CDN + "dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf");
+        if (!res.ok) throw new Error(res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        pdfFont = btoa(bin);
+      } catch { pdfFont = null; }
+    }
+    return pdfFont;
+  }
+  async function makePdf() {
+    await loadScript(CDN + "jspdf@2.5.1/dist/jspdf.umd.min.js");
+    const font = await loadPdfFont();
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+    let family = "helvetica";
+    if (font) {
+      doc.addFileToVFS("DejaVuSans.ttf", font);
+      doc.addFont("DejaVuSans.ttf", "DejaVu", "normal");
+      family = "DejaVu";
+    }
+    // Without the font, drop accents so nothing turns into garbage characters.
+    const txt = v => font ? String(v) : String(v).replace(/ı/g, "i").replace(/İ/g, "I").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    const M = 48, width = W - M * 2;
+    let y = M;
+    const line = (text, size, color, gap) => {
+      doc.setFontSize(size); doc.setTextColor(color);
+      const lh = size * 1.35;
+      for (const l of doc.splitTextToSize(txt(text), width)) {
+        if (y + lh > H - M) { doc.addPage(); y = M; }
+        doc.text(l, M, y + size); y += lh;
+      }
+      y += gap || 0;
+    };
+    doc.setFont(family, "normal");
+    line("Notes", 20, 20, 2);
+    line(`${notes.length} note${notes.length === 1 ? "" : "s"} · exported ${fmt(Date.now())}`, 9, 110, 14);
+    for (const n of newestFirst()) {
+      if (y + 60 > H - M) { doc.addPage(); y = M; }
+      doc.setDrawColor(210); doc.line(M, y, W - M, y); y += 10;
+      line(n.title || "Untitled", 13, 20, 1);
+      line(fmt(n.created) + (n.updated && n.updated !== n.created ? ` · edited ${fmt(n.updated)}` : ""), 8.5, 120, 6);
+      if (n.body) line(n.body, 10.5, 40, 0);
+      y += 14;
+    }
+    return doc;
+  }
+
+  $("dl-pdf").onclick = e => busy(e.currentTarget, async () => (await makePdf()).save(`notes-${stamp()}.pdf`));
+  $("dl-txt").onclick = () => { if (needNotes()) download(new Blob([notesText()], { type: "text/plain;charset=utf-8" }), `notes-${stamp()}.txt`); };
+  $("email").onclick = () => {
+    if (!needNotes()) return;
+    // Email links get cut off when they are very long, so long exports are shortened.
+    const LIMIT = 6000;
+    let body = notesText();
+    if (body.length > LIMIT) body = body.slice(0, LIMIT) + "\n\n… (shortened; use the PDF or Text file button for everything)";
+    location.href = `mailto:?subject=${encodeURIComponent(`My notes (${stamp()})`)}&body=${encodeURIComponent(body)}`;
+  };
+  if (navigator.share) {
+    $("share").hidden = false;
+    // Making the PDF can take long enough that the browser no longer counts the tap
+    // (Safari is strict), so the prepared file is kept and a second tap shares it at once.
+    let prepared = null;
+    const shareBtn = $("share");
+    shareBtn.onclick = async () => {
+      if (!needNotes()) return;
+      const key = JSON.stringify(notes), title = `My notes (${stamp()})`;
+      if (!prepared || prepared.key !== key) {
+        shareBtn.disabled = true; shareBtn.textContent = "Preparing…";
+        let file = null;
+        try {
+          const blob = (await makePdf()).output("blob");
+          file = new File([blob], `notes-${stamp()}.pdf`, { type: "application/pdf" });
+          if (!(navigator.canShare && navigator.canShare({ files: [file] }))) file = null;
+        } catch {}
+        prepared = { key, data: file ? { title, files: [file] } : { title, text: notesText() } };
+        shareBtn.disabled = false; shareBtn.textContent = "Share…";
+      }
+      try { await navigator.share(prepared.data); }
+      catch (err) {
+        if (err && err.name === "NotAllowedError") { shareBtn.textContent = "Tap again to share"; return; }
+        if (err && err.name !== "AbortError") toast("Sharing didn't work here. Try the PDF or Email button.");
+      }
+      shareBtn.textContent = "Share…";
+    };
+  }
 
   window.addEventListener("storage", e => { if (e.key === KEY) { notes = load(); render(); } });
   render();
