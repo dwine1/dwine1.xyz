@@ -266,7 +266,7 @@
     <h2 id="slotsTitle">Compare 4 cities</h2>
     <ul class="slots" id="slots"></ul>
     <h2 id="convTitle">Convert a time</h2>
-    <p class="conv-hint">Pick a city and a time in the first box to see that moment in the other 3 cities.</p>
+    <p class="conv-hint">Each row converts a time: pick a city and a time on the left, and the city on the right shows that moment.</p>
     <ul class="slots" id="convSlots" aria-labelledby="convTitle"></ul>
     <div class="diffs" id="diffs"></div>
   </aside>
@@ -284,8 +284,8 @@
   </div>
 </div>
 
-<script src="cities.js?v=10"></script>
-<script src="us-map.js?v=10"></script>
+<script src="cities.js?v=11"></script>
+<script src="us-map.js?v=11"></script>
 <script>
   // Cities to choose from. Times come from the browser's IANA time zone data, so daylight saving is handled.
   const LEGACY = {
@@ -340,7 +340,9 @@
   const DEFAULTS = ["Istanbul", "London", "New York", "Los Angeles", "Tokyo", "Sydney", "Dubai", "Berlin"]
     .map(n => byName.get(n).key);
   const DEFAULT_SLOTS = ["Istanbul", "New York", "Tokyo", "London"].map(n => byName.get(n).key);
-  const DEFAULT_CONV = { keys: DEFAULT_SLOTS.slice(), time: "09:00" };
+  // Two conversions side by side: box 1 → box 2 and box 3 → box 4, each with its own time.
+  const DEFAULT_CONV = { keys: ["Istanbul", "New York", "Istanbul", "Tokyo"].map(n => byName.get(n).key), times: ["09:00", "18:00"] };
+  const newConv = () => ({ keys: DEFAULT_CONV.keys.slice(), times: DEFAULT_CONV.times.slice() });
   const DEFAULT_DIFFS = [[0, 1], [2, 3], [0, 2]];
   // US cities that have a spot on the pin map.
   // The page has to survive a stale cached data file, so a missing US_PINS just means an empty pin map.
@@ -362,15 +364,17 @@
           : (i === 0 && okPair(s.diff)) ? s.diff : d.slice());
         const slots = [0, 1, 2, 3].map(i => (Array.isArray(s.slots) && byKey.has(s.slots[i])) ? s.slots[i] : (Array.isArray(s.slots) ? null : DEFAULT_SLOTS[i]));
         const pins = DEFAULT_PINS.map((_, i) => Array.isArray(s.pins) ? (US_CITIES.some(c => c.key === s.pins[i]) ? s.pins[i] : null) : DEFAULT_PINS[i]);
-        const c = s.conv || {};
+        const c = s.conv || {}, okTime = (t) => /^\d{2}:\d{2}$/.test(t);
+        // An earlier version converted one time from box 1 to boxes 2 to 4; keep its first pair.
+        const oldKeys = Array.isArray(c.keys) && !Array.isArray(c.times) ? [c.keys[0], c.keys[1], c.keys[0], c.keys[2]] : c.keys;
         const conv = {
-          keys: [0, 1, 2, 3].map(i => Array.isArray(c.keys) ? (byKey.has(c.keys[i]) ? c.keys[i] : null) : DEFAULT_CONV.keys[i]),
-          time: /^\d{2}:\d{2}$/.test(c.time) ? c.time : DEFAULT_CONV.time,
+          keys: [0, 1, 2, 3].map(i => Array.isArray(oldKeys) ? (byKey.has(oldKeys[i]) ? oldKeys[i] : null) : DEFAULT_CONV.keys[i]),
+          times: [0, 1].map(i => Array.isArray(c.times) && okTime(c.times[i]) ? c.times[i] : (i === 0 && okTime(c.time) ? c.time : DEFAULT_CONV.times[i])),
         };
         return { cities: [...new Set(keys)], slots, diffs, pins, conv, h12: !!s.h12 };
       }
     } catch (e) {}
-    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diffs: DEFAULT_DIFFS.map(d => d.slice()), pins: DEFAULT_PINS.slice(), conv: { keys: DEFAULT_CONV.keys.slice(), time: DEFAULT_CONV.time }, h12: false };
+    return { cities: DEFAULTS.slice(), slots: DEFAULT_SLOTS.slice(), diffs: DEFAULT_DIFFS.map(d => d.slice()), pins: DEFAULT_PINS.slice(), conv: newConv(), h12: false };
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   const state = load();
@@ -637,7 +641,7 @@
     tick();
   }
 
-  // Time converter: pick a city and a time of day in box 1, and boxes 2 to 4 show that same moment in their city.
+  // Time converter: two rows, each with a source city and time on the left and a target city on the right.
   const convViews = [];
   let convCards = [];
   for (let i = 0; i < 4; i++) {
@@ -647,10 +651,10 @@
       <div class="slot-bar">
         <div class="search">
           <input type="text" role="combobox" aria-expanded="false" aria-controls="conv-opts-${i}" aria-autocomplete="list"
-            autocomplete="off" spellcheck="false" placeholder="Type a city…" aria-label="${i ? `City ${i + 1} to convert to` : "City to convert from"}">
+            autocomplete="off" spellcheck="false" placeholder="Type a city…" aria-label="${i % 2 ? `City to convert to, row ${(i >> 1) + 1}` : `City to convert from, row ${(i >> 1) + 1}`}">
           <ul class="options" id="conv-opts-${i}" role="listbox" aria-label="Cities" hidden></ul>
         </div>
-        ${i ? `<button type="button">Remove</button>` : `<input class="conv-time" type="time" aria-label="Time of day">`}
+        ${i % 2 ? `<button type="button">Remove</button>` : `<input class="conv-time" type="time" aria-label="Time of day, row ${(i >> 1) + 1}">`}
       </div>
       <div class="slot-body"></div>`;
     document.getElementById("convSlots").appendChild(li);
@@ -665,7 +669,7 @@
     const timeInput = li.querySelector(".conv-time");
     if (timeInput) timeInput.addEventListener("input", () => {
       if (!/^\d{2}:\d{2}$/.test(timeInput.value)) return;
-      state.conv.time = timeInput.value;
+      state.conv.times[i >> 1] = timeInput.value;
       save(); tick();
     });
     convViews.push({ input, rm, timeInput, body });
@@ -677,7 +681,7 @@
       const key = state.conv.keys[i];
       v.body.textContent = "";
       v.input.value = key ? byKey.get(key).name : "";
-      if (v.timeInput) v.timeInput.value = state.conv.time;
+      if (v.timeInput) v.timeInput.value = state.conv.times[i >> 1];
       if (v.rm) {
         v.rm.disabled = !key;
         v.rm.setAttribute("aria-label", key ? `Remove ${byKey.get(key).name}` : `Box ${i + 1} is empty`);
@@ -685,7 +689,7 @@
       if (key) {
         const card = makeCard(key);
         card.clock.sec.style.display = "none";  // a chosen moment, not a running clock
-        if (i === 0) card.li.classList.add("base");
+        if (i % 2 === 0) card.li.classList.add("base");
         const ul = document.createElement("ul");
         ul.className = "grid";
         ul.style.gridTemplateColumns = "1fr";
@@ -695,7 +699,7 @@
       } else {
         const p = document.createElement("p");
         p.className = "slot-empty";
-        p.textContent = i ? "Empty. Type a city above." : "Type the city to convert from.";
+        p.textContent = i % 2 ? "Type the city to convert to." : "Type the city to convert from.";
         v.body.appendChild(p);
       }
     });
@@ -711,37 +715,40 @@
   }
 
   function updateConv(now) {
-    const base = state.conv.keys[0] && byKey.get(state.conv.keys[0]);
-    const [h, mi] = state.conv.time.split(":").map(Number);
-    if (!base) {
-      convCards.forEach(c => { if (c) { c.time.textContent = "--:--"; c.date.textContent = ""; c.offset.textContent = "Pick a city in the first box"; } });
-      return;
-    }
-    // Use today's date in the base city.
-    const today = partsIn(base.zone, now);
-    const when = instantAt(base.zone, today.year, today.month, today.day, h, mi);
-    const baseDay = Date.UTC(today.year, today.month - 1, today.day) / 86400000;
-    const baseOff = offsetMinutes(base.zone, when);
     const pad = (n) => String(n).padStart(2, "0");
-    convCards.forEach((c, i) => {
-      if (!c) return;
-      const p = partsIn(c.zone, when);
-      const m = p.minute;
-      c.clock.hour.setAttribute("transform", `rotate(${((p.hour % 12) + m / 60) * 30} 60 60)`);
-      c.clock.min.setAttribute("transform", `rotate(${m * 6} 60 60)`);
-      const night = p.hour < 6 || p.hour >= 19;
-      c.li.classList.toggle("night", night);
-      c.sky.textContent = night ? "🌙" : "☀️";
-      c.sky.setAttribute("aria-label", night ? "Night" : "Day");
-      const hh = state.h12 ? ((p.hour + 11) % 12) + 1 : p.hour;
-      c.time.innerHTML = `${pad(hh)}:${pad(m)}` + (state.h12 ? `<span class="ampm">${p.hour < 12 ? "AM" : "PM"}</span>` : "");
-      c.date.textContent = new Intl.DateTimeFormat("en-GB", { timeZone: c.zone, weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(when);
-      const off = offsetMinutes(c.zone, when);
-      const dayShift = Date.UTC(p.year, p.month - 1, p.day) / 86400000 - baseDay;
-      const dayText = dayShift === 0 ? "same day" : dayShift === 1 ? "next day" : dayShift === -1 ? "day before" : `${dayShift > 0 ? "+" : ""}${dayShift} days`;
-      c.offset.textContent = i === 0 ? `${fmtOffset(off)} · your pick`
-        : `${fmtOffset(off)} · ${fmtDiff(off - baseOff).replace("same as you", "same time")} · ${dayText}`;
-    });
+    for (const row of [0, 1]) {
+      const pair = [convCards[row * 2], convCards[row * 2 + 1]];
+      const base = state.conv.keys[row * 2] && byKey.get(state.conv.keys[row * 2]);
+      if (!base) {
+        if (pair[1]) { pair[1].time.textContent = "--:--"; pair[1].date.textContent = ""; pair[1].offset.textContent = "Pick a city on the left"; }
+        continue;
+      }
+      // Use today's date in the source city.
+      const [h, mi] = state.conv.times[row].split(":").map(Number);
+      const today = partsIn(base.zone, now);
+      const when = instantAt(base.zone, today.year, today.month, today.day, h, mi);
+      const baseDay = Date.UTC(today.year, today.month - 1, today.day) / 86400000;
+      const baseOff = offsetMinutes(base.zone, when);
+      pair.forEach((c, side) => {
+        if (!c) return;
+        const p = partsIn(c.zone, when);
+        const m = p.minute;
+        c.clock.hour.setAttribute("transform", `rotate(${((p.hour % 12) + m / 60) * 30} 60 60)`);
+        c.clock.min.setAttribute("transform", `rotate(${m * 6} 60 60)`);
+        const night = p.hour < 6 || p.hour >= 19;
+        c.li.classList.toggle("night", night);
+        c.sky.textContent = night ? "🌙" : "☀️";
+        c.sky.setAttribute("aria-label", night ? "Night" : "Day");
+        const hh = state.h12 ? ((p.hour + 11) % 12) + 1 : p.hour;
+        c.time.innerHTML = `${pad(hh)}:${pad(m)}` + (state.h12 ? `<span class="ampm">${p.hour < 12 ? "AM" : "PM"}</span>` : "");
+        c.date.textContent = new Intl.DateTimeFormat("en-GB", { timeZone: c.zone, weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(when);
+        const off = offsetMinutes(c.zone, when);
+        const dayShift = Date.UTC(p.year, p.month - 1, p.day) / 86400000 - baseDay;
+        const dayText = dayShift === 0 ? "same day" : dayShift === 1 ? "next day" : dayShift === -1 ? "day before" : `${dayShift > 0 ? "+" : ""}${dayShift} days`;
+        c.offset.textContent = side === 0 ? `${fmtOffset(off)} · your pick`
+          : `${fmtOffset(off)} · ${fmtDiff(off - baseOff).replace("same as you", "same time")} · ${dayText}`;
+      });
+    }
   }
 
   // Time difference blocks, each comparing two of the four slots in hours, minutes and seconds.
@@ -991,7 +998,7 @@
     state.slots = DEFAULT_SLOTS.slice();
     state.diffs = DEFAULT_DIFFS.map(d => d.slice());
     state.pins = DEFAULT_PINS.slice();
-    state.conv = { keys: DEFAULT_CONV.keys.slice(), time: DEFAULT_CONV.time };
+    state.conv = newConv();
     renderConv();
     renderPins();
     save(); render(); renderSlots();
