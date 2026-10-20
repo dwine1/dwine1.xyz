@@ -22,7 +22,11 @@
   // Open the target now, while the tap still counts as a user action, so popup blockers allow it.
   const win = window.open(TARGET, "dwine1-things");
 
-  const items = [], seen = new Set();
+  const items = [], seen = new Set(), log = [];
+  // The page you're looking at counts too, in case fetching other pages doesn't work.
+  const here = orderCards(document);
+  here.forEach(readOrder);
+  log.push(`here:${here.length}/${items.length}`);
   const base = new URL(location.href);
   const path = /order-history|your-orders/.test(base.pathname) ? base.pathname : "/gp/css/order-history";
   for (const y of pick.sort((a, b) => b - a)) {
@@ -35,8 +39,10 @@
       try {
         const r = await fetch(u, { credentials: "include" });
         doc = new DOMParser().parseFromString(await r.text(), "text/html");
-      } catch (e) { break; }
+        if (start === 0 && log.length < 6) log.push(`${y}:${r.status}:${new URL(r.url).pathname}:${(doc.title || "").slice(0, 30)}:${doc.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length}`);
+      } catch (e) { log.push(`${y}:err:${e.message}`); break; }
       const before = items.length, cards = orderCards(doc);
+      if (start === 0 && log.length < 7) log.push(`${y}:cards:${cards.length}`);
       if (!cards.length) break;
       for (const c of cards) readOrder(c);
       const next = doc.querySelector(".a-pagination .a-last:not(.a-disabled) a");
@@ -45,7 +51,11 @@
     }
   }
 
-  if (!items.length) { say(TR ? "Sipariş bulunamadı. Siparişlerim sayfasında olduğunuzdan emin olun." : "No orders found. Make sure you're on Your Orders and signed in.", true); return; }
+  if (!items.length) {
+    say((TR ? "Sipariş bulunamadı. Bu mesajın ekran görüntüsünü Claude'a gönderin. " : "No orders found. Send Claude a screenshot of this message. ") +
+      `[${location.pathname} · ${document.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length} · ${log.join(" | ")}]`, true);
+    return;
+  }
   say(`${items.length} ${TR ? "ürün bulundu, dwine1.xyz'ye gönderiliyor…" : "items found, sending to dwine1.xyz…"}`);
   const payload = { app: "dwine1-amazon-import", version: 1, site: location.hostname, items };
   let done = false;
@@ -64,7 +74,15 @@
   function orderCards(doc) {
     const sel = [".order-card", ".js-order-card", "#ordersContainer > .order", ".your-orders-content-container .order"];
     for (const s of sel) { const c = [...doc.querySelectorAll(s)]; if (c.length) return c; }
-    return [];
+    // Layout we don't know: for each product link, the smallest box around it that also shows an order number is its order.
+    const found = new Set();
+    for (const a of doc.querySelectorAll('a[href*="/dp/"], a[href*="/gp/product/"]')) {
+      for (let n = a.parentElement; n && n !== doc.body; n = n.parentElement) {
+        const ids = n.textContent.match(/\b\d{3}-\d{7}-\d{7}\b/g);
+        if (ids) { if (new Set(ids).size === 1) found.add(n); break; }
+      }
+    }
+    return [...found].filter(n => ![...found].some(o => o !== n && o.contains(n)));
   }
   function readOrder(card) {
     const text = card.textContent.replace(/\s+/g, " ");
