@@ -141,7 +141,8 @@
           await syncOnce(k);
         } while (job.again && creds);
         state = "ok";
-      } catch (e) { state = "offline"; }
+        lastError = "";
+      } catch (e) { state = "offline"; lastError = (e && e.message) || String(e); }
       delete running[k];
       say();
     })();
@@ -185,7 +186,7 @@
   const syncAll = () => Promise.all(keys.map(sync));
 
   // --- badge and sign-in panel ----------------------------------------------
-  let state = creds ? "ok" : "off", host, root;
+  let state = creds ? "ok" : "off", lastError = "", host, root;
   function say(s) {
     if (s) state = s;
     if (!root) return;
@@ -201,6 +202,8 @@
     b.querySelector(".t").textContent = text;
     b.className = "badge " + shown;
     b.title = creds ? "Synced with your PIN. Click to sign out." : "Sign in with your PIN to keep this page the same on all your devices.";
+    const why = root.getElementById("why");
+    why.textContent = shown === "offline" && lastError ? "Last sync failed: " + lastError : "";
     // Buttons the page placed itself mirror the badge.
     document.querySelectorAll("[data-sync-button]").forEach(el => {
       el.textContent = text;
@@ -261,6 +264,7 @@
   <div class="panel" id="out" hidden>
     <h2>Synced</h2>
     <p>This browser is signed in, so changes here appear on your other devices and theirs appear here. Signing out stops syncing; your data stays online for when you sign in again.</p>
+    <div class="err" id="why" role="status"></div>
     <div class="row">
       <button class="b danger" type="button" id="wipe">Sign out and clear this browser</button>
       <button class="b" type="button" id="signout">Sign out</button>
@@ -290,9 +294,10 @@
       const p = pin.value.trim();
       if (!/^\d{6,8}$/.test(p)) { err.textContent = "Use 6 to 8 digits."; return; }
       go.disabled = true; err.textContent = "Signing in…";
-      await api.login(p);
+      try { await api.login(p); }
+      catch (e2) { go.disabled = false; err.textContent = "Couldn't sign in: " + ((e2 && e2.message) || e2) + (window.isSecureContext ? "" : " (open the site with https://)"); say(creds ? "offline" : "off"); return; }
       go.disabled = false;
-      if (state === "offline") err.textContent = "Signed in, but couldn't reach the server. It will retry.";
+      if (state === "offline") err.textContent = "Signed in, but syncing failed: " + lastError + ". It will retry.";
       else close();
     });
     $("signout").addEventListener("click", () => { api.logout(false); close(); });
