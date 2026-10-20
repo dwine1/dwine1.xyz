@@ -111,6 +111,18 @@
   .linkout { color: var(--accent); overflow-wrap: anywhere; }
   .meta { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
 
+  #amz [hidden] { display: none !important; }
+  .amz-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: .45rem; }
+  .bm { display: inline-block; font-weight: 700; color: #fff; background: #e47911; border-radius: 8px; padding: .45rem .85rem; text-decoration: none; cursor: grab; }
+  .amz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; max-height: 55dvh; overflow-y: auto; }
+  .amz-list label { display: grid; grid-template-columns: auto 3rem 1fr; gap: .6rem; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: .4rem .6rem; cursor: pointer; }
+  .amz-list input { width: auto; }
+  .amz-list .im { width: 3rem; height: 3rem; border-radius: 6px; background: #fff; object-fit: contain; }
+  .amz-list .t { font-size: .9rem; overflow-wrap: anywhere; display: grid; }
+  .amz-list .t small { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+  .amz-list .dup { opacity: .55; }
+  .card .pic img.remote, .gallery .main img.remote { object-fit: contain; background: #fff; }
+
   #zoom { width: auto; max-width: calc(100% - 16px); background: #000; border: 0; }
   #zoom img { display: block; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); cursor: zoom-out; }
 
@@ -145,6 +157,7 @@
         <span class="grow" style="flex:1"></span>
         <button type="button" id="export" title="One file with every thing, photo and PDF">Backup</button>
         <button type="button" id="import">Import</button>
+        <button type="button" id="amazon">Import from Amazon</button>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
       <ul class="grid" id="list"></ul>
@@ -203,6 +216,30 @@
         <button type="button" class="danger" id="v-remove">Remove</button>
         <span class="grow"></span>
         <button type="button" id="v-edit" class="primary">Edit</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="amz" aria-labelledby="amzTitle">
+    <div class="dlg">
+      <div class="dlg-head"><h2 id="amzTitle">Import from Amazon</h2><button type="button" class="x" data-close aria-label="Close">×</button></div>
+      <div id="amzHow" style="display:grid;gap:.9rem">
+        <p style="margin:0">Amazon has no way for other sites to read your orders, so this uses a bookmark that you tap while you're on your Amazon orders page. It reads each item's name, photo, order date, order number and price, then brings them here so you can choose what to add. It only sends them to this page.</p>
+        <ol class="amz-steps">
+          <li><b>Add the bookmark.</b> On a computer, drag this button to your bookmarks bar: <a class="bm" id="bm" href="#">＋ Things I own</a>
+            <br><span class="hint">On a phone: <button type="button" id="bmCopy">Copy bookmark code</button>, bookmark any page, edit that bookmark and paste the code as its address.</span></li>
+          <li><b>Open your orders</b> on Amazon, signed in: <a id="amzOrders" href="https://www.amazon.com.tr/gp/css/order-history" target="_blank" rel="noopener">amazon.com.tr → Siparişlerim</a>.</li>
+          <li><b>Tap the bookmark</b> there and choose the years. A dwine1.xyz tab opens with your items. If your browser blocks the new tab, it downloads <code>amazon-orders.json</code>; open that with Import here.</li>
+        </ol>
+        <p class="hint" style="margin:0">Photos are shown from Amazon's servers and sync with the rest of the details. Items you've already imported are skipped.</p>
+      </div>
+      <div id="amzReview" hidden style="display:grid;gap:.75rem">
+        <div class="row" style="justify-content:flex-start"><span class="hint grow" id="amzCount"></span>
+          <button type="button" id="amzAll">Select all</button><button type="button" id="amzNone">Select none</button></div>
+        <input id="amzFilter" type="search" placeholder="Filter by name" aria-label="Filter by name">
+        <ul class="amz-list" id="amzList"></ul>
+        <label class="f"><span>Category for these (optional)</span><input id="amzCat" list="cats" maxlength="60"></label>
+        <div class="row"><button type="button" data-close>Cancel</button><button type="button" class="primary" id="amzAdd">Add</button></div>
       </div>
     </div>
   </dialog>
@@ -324,6 +361,8 @@
     if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s;
     try { const u = new URL(s); return /^https?:$/.test(u.protocol) ? u.href : ""; } catch { return ""; }
   }
+  // Photos imported from Amazon stay on Amazon's image servers; only allow those.
+  const remoteImg = i => i && typeof i.imageUrl === "string" && /^https:\/\/[a-z0-9.-]*(media-amazon|ssl-images-amazon|images-amazon)\.com\//i.test(i.imageUrl) ? i.imageUrl : "";
   function el(tag, props, ...kids) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(props || {})) {
@@ -379,6 +418,7 @@
     for (const i of shown) {
       const pic = el("div", { class: "pic", "aria-hidden": "true" });
       if (i.thumb) pic.append(el("img", { src: i.thumb, alt: "" }));
+      else if (remoteImg(i)) pic.append(el("img", { src: remoteImg(i), alt: "", class: "remote", loading: "lazy", referrerpolicy: "no-referrer" }));
       else pic.textContent = "◇";
       const cover = i.photos && i.photos[0];
       if (cover) fileUrl(cover.id).then(u => { if (u) { pic.textContent = ""; pic.append(el("img", { src: u, alt: "", loading: "lazy" })); } });
@@ -430,6 +470,11 @@
       show(0);
     }
 
+    if (!photos.length && remoteImg(i)) {
+      const img = el("img", { src: remoteImg(i), alt: i.name, class: "remote", referrerpolicy: "no-referrer" });
+      img.onclick = () => { $("zoom").querySelector("img").src = img.src; $("zoom").showModal(); };
+      body.append(el("div", { class: "gallery" }, el("div", { class: "main" }, img)));
+    }
     if (i.description) body.append(el("div", {}, el("p", { class: "sect", text: "Description" }), el("p", { class: "desc", text: i.description })));
     const link = safeLink(i.link);
     if (link) body.append(el("div", {}, el("p", { class: "sect", text: "Link" }), el("a", { class: "linkout", href: link, target: "_blank", rel: "noopener noreferrer", text: link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") })));
@@ -634,6 +679,7 @@
     const f = e.target.files[0]; e.target.value = ""; if (!f) return;
     try {
       const data = JSON.parse(await f.text());
+      if (data && data.app === "dwine1-amazon-import") { amazonReview(data); return; }
       const incoming = (Array.isArray(data) ? data : data.items) || [];
       let filesIn = 0;
       for (const x of data.files || []) {
@@ -649,6 +695,8 @@
           photos: Array.isArray(x.photos) ? x.photos.filter(p => p && p.id).map(p => ({ id: String(p.id) })) : [],
           pdfs: Array.isArray(x.pdfs) ? x.pdfs.filter(p => p && p.id).map(p => ({ id: String(p.id), name: String(p.name || "file.pdf"), size: Number(p.size) || 0 })) : [],
           thumb: typeof x.thumb === "string" && x.thumb.startsWith("data:image/") ? x.thumb : "" };
+        if (remoteImg(x)) clean.imageUrl = x.imageUrl;
+        if (typeof x.source === "string") clean.source = x.source.slice(0, 80);
         for (const k of FIELDS) clean[k] = x[k] == null ? "" : String(x[k]);
         const cur = items.find(i => i.id === clean.id);
         if (!cur) { items.push(clean); added++; }
@@ -658,6 +706,93 @@
       persist(); render();
       toast(`Imported ${added} new, ${updated} updated, ${filesIn} photos/PDFs.`);
     } catch { toast("That file isn't a Things I own backup."); }
+  };
+
+  // --- import from Amazon --------------------------------------------------------
+  // amazon-bookmarklet.js runs on the Amazon orders page and posts its findings here (or downloads them as a file).
+  const amz = $("amz");
+  let amzRows = [];
+  fetch("amazon-bookmarklet.js").then(r => r.ok ? r.text() : Promise.reject()).then(src => {
+    src = src.split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n").split("https://dwine1.xyz").join(location.origin);
+    const href = "javascript:" + encodeURIComponent(src);
+    $("bm").href = href;
+    $("bmCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText(href); toast("Bookmark code copied."); }
+      catch { prompt("Copy this bookmark code:", href); }
+    };
+  }).catch(() => { $("bm").removeAttribute("href"); $("bm").textContent = "Couldn't load the bookmark"; });
+  $("bm").addEventListener("click", e => { e.preventDefault(); toast("Drag this button to your bookmarks bar, then tap it on your Amazon orders page."); });
+  $("amazon").onclick = () => { $("amzHow").hidden = false; $("amzReview").hidden = true; amz.showModal(); };
+
+  const AMZ_ORIGIN = /^https:\/\/([a-z0-9-]+\.)*amazon\.(com|com\.tr|co\.uk|de|fr|it|es|nl|ca|com\.au|co\.jp|in|ae|sa|se|pl|com\.be|com\.mx|com\.br|sg|eg)$/;
+  window.addEventListener("message", e => {
+    if (!AMZ_ORIGIN.test(e.origin) || !e.data || e.data.app !== "dwine1-amazon-import") return;
+    try { e.source && e.source.postMessage("dwine1-amazon-ok", e.origin); } catch {}
+    if (amz.open && !$("amzReview").hidden && amzRows.length) return;   // repeat of the same delivery
+    amazonReview(e.data);
+  });
+
+  function amazonReview(data) {
+    const have = new Set(live().map(i => i.source).filter(Boolean));
+    const host = String(data.site || "amazon.com.tr").replace(/^www\./, "").slice(0, 40);
+    amzRows = (Array.isArray(data.items) ? data.items : []).filter(x => x && typeof x.name === "string" && x.name.trim()).slice(0, 3000).map(x => {
+      const asin = /^[A-Z0-9]{10}$/.test(x.asin) ? x.asin : "";
+      const orderId = /^[\d-]{5,30}$/.test(x.orderId || "") ? x.orderId : "";
+      const source = "amazon:" + orderId + ":" + (asin || x.name.trim().slice(0, 40));
+      return {
+        name: x.name.trim().slice(0, 200), asin, orderId, source, host,
+        date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || "") ? x.date : "",
+        imageUrl: remoteImg({ imageUrl: x.image }),
+        link: asin ? `https://www.${host}/dp/${asin}` : "",
+        price: x.price && isFinite(Number(x.price)) ? String(x.price) : "",
+        currency: ["TRY", "USD", "EUR", "GBP"].includes(x.currency) ? x.currency : "",
+        dup: have.has(source),
+      };
+    });
+    amzRows.forEach(r => r.on = !r.dup);
+    $("amzHow").hidden = true; $("amzReview").hidden = false; $("amzFilter").value = "";
+    drawAmazon();
+    if (!amz.open) { document.querySelectorAll("dialog[open]").forEach(d => d.close()); amz.showModal(); }
+    if (location.hash === "#amazon") history.replaceState(null, "", location.pathname);
+  }
+  function drawAmazon() {
+    const q = $("amzFilter").value.trim().toLocaleLowerCase();
+    const ul = $("amzList"); ul.textContent = "";
+    for (const r of amzRows) {
+      if (q && !r.name.toLocaleLowerCase().includes(q)) continue;
+      const cb = el("input", { type: "checkbox" }); cb.checked = r.on;
+      cb.onchange = () => { r.on = cb.checked; countAmazon(); };
+      const im = r.imageUrl ? el("img", { class: "im", src: r.imageUrl, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "im" });
+      ul.append(el("li", { class: r.dup ? "dup" : "" }, el("label", {}, cb, im,
+        el("span", { class: "t" }, r.name, el("small", { text: [r.date && day(r.date), r.price && money(r.price, r.currency || "TRY"), r.dup && "already added"].filter(Boolean).join(" · ") })))));
+    }
+    if (!amzRows.length) ul.append(el("li", { class: "empty", text: "No items came through. Make sure you're signed in on the Amazon orders page." }));
+    countAmazon();
+  }
+  function countAmazon() {
+    const n = amzRows.filter(r => r.on).length;
+    $("amzCount").textContent = `${amzRows.length} item${amzRows.length === 1 ? "" : "s"} found · ${n} selected`;
+    $("amzAdd").textContent = n ? `Add ${n} thing${n === 1 ? "" : "s"}` : "Add";
+    $("amzAdd").disabled = !n;
+  }
+  $("amzFilter").addEventListener("input", drawAmazon);
+  $("amzAll").onclick = () => { amzRows.forEach(r => r.on = true); drawAmazon(); };
+  $("amzNone").onclick = () => { amzRows.forEach(r => r.on = false); drawAmazon(); };
+  $("amzAdd").onclick = () => {
+    const cat = $("amzCat").value.trim(), have = new Set(live().map(i => i.source).filter(Boolean));
+    let n = 0, t = Date.now();
+    // Oldest order first, so "Newest added" lists the newest purchases on top.
+    for (const r of [...amzRows].reverse().sort((x, y) => (x.date || "").localeCompare(y.date || ""))) {
+      if (!r.on || have.has(r.source)) continue;
+      const now = t++;
+      const store = "Amazon." + r.host.replace(/^amazon\./, "");
+      items.push({ id: uid(), created: now, updated: now, name: r.name, category: cat, link: r.link,
+        description: r.orderId ? `${store} order ${r.orderId}` : "", brand: "", model: "", serial: "", condition: "",
+        purchased: r.date, price: r.price, currency: r.currency || "TRY", store, warranty: "", location: "",
+        photos: [], pdfs: [], thumb: "", imageUrl: r.imageUrl, source: r.source });
+      have.add(r.source); n++;
+    }
+    if (persist()) { amz.close(); amzRows = []; render(); toast(`Added ${n} thing${n === 1 ? "" : "s"} from Amazon.`); }
   };
 
   // Another tab or device changed the list (sync.js fires this after it applies a change).
