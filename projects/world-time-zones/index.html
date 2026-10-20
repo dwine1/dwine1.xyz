@@ -233,6 +233,7 @@
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
+<script src="../../sync.js?v=1" data-keys="world-time-zones"></script>
 </head>
 <body>
 <div class="wrap">
@@ -1017,6 +1018,14 @@
   renderSlots();
   renderPins();
   renderConv();
+  // Another tab, or the site sync bringing in choices made on another device.
+  window.addEventListener("storage", e => {
+    if (e.key !== KEY) return;
+    Object.assign(state, load());
+    document.getElementById("h12").setAttribute("aria-pressed", state.h12);
+    document.getElementById("h24").setAttribute("aria-pressed", !state.h12);
+    render(); renderSlots(); renderPins(); renderConv();
+  });
   // Tick on each second boundary so the second hand stays in step.
   (function loop() { tick(); setTimeout(loop, 1000 - (Date.now() % 1000) + 5); })();
 </script>

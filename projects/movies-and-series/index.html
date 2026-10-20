@@ -206,6 +206,7 @@
   .io { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .85rem; color: var(--muted); }
   .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .5rem 1rem; border-radius: 6px; font-size: .9rem; max-width: calc(100% - 32px); }
 </style>
+<script src="../../sync.js?v=1" data-keys="dwine1-watchlist-v1"></script>
 </head>
 <body>
 <div class="wrap">
@@ -1199,6 +1200,8 @@
   resetForm();
   render();
   fillReleaseDates();
+  // Another tab, or the site sync bringing in changes from another device.
+  window.addEventListener("storage", e => { if (e.key === KEY) { items = load(); render(); } });
 </script>
 </body>
 </html>
