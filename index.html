@@ -80,12 +80,26 @@
     .meta { grid-column: 2; }
   }
 
+  .sync-row { margin: .25rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .9rem; }
+  .sync-btn {
+    font: inherit; font-weight: 700; font-size: .95rem; cursor: pointer;
+    padding: .55rem 1rem; border-radius: 999px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; display: inline-flex; align-items: center; gap: .5rem;
+  }
+  .sync-btn::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: currentColor; opacity: .85; }
+  .sync-btn:not([data-sync-state="off"]) { background: var(--surface); color: var(--fg); border-color: var(--line); }
+  .sync-btn[data-sync-state="ok"]::before { background: #1f9d55; opacity: 1; }
+  .sync-btn[data-sync-state="saving"]::before { background: #d9a400; opacity: 1; }
+  .sync-btn[data-sync-state="offline"]::before { background: #d23c3c; opacity: 1; }
+  .sync-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sync-hint { color: var(--muted); font-size: .9rem; }
+
   .empty { color: var(--muted); padding: 1rem .5rem; margin: 0; }
   footer { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-<script src="sync.js?v=1"></script>
+<script src="sync.js?v=2" data-badge="off"></script>
 </head>
 <body>
 
@@ -94,6 +108,8 @@
     <span class="domain">dwine1.xyz</span>
     <h1>Small projects<span class="dot">.</span></h1>
     <p class="lede">A running list of little things I build. Pick one to open it.</p>
+    <p class="sync-row"><button type="button" class="sync-btn" data-sync-button data-sync-state="off">Sign in to sync</button>
+      <span class="sync-hint">One PIN keeps every project the same on all your devices.</span></p>
   </header>
 
   <main>

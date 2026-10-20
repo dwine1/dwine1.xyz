@@ -19,6 +19,8 @@
 
   const me = document.currentScript;
   const keys = ((me && me.dataset.keys) || "").split(/\s+/).filter(Boolean);
+  // data-badge="off" hides the floating corner button, for a page that has its own [data-sync-button].
+  const showBadge = !(me && me.dataset.badge === "off");
   let store = null;
   try { store = window.localStorage; } catch (e) {}
   if (!store) return;
@@ -199,6 +201,12 @@
     b.querySelector(".t").textContent = text;
     b.className = "badge " + shown;
     b.title = creds ? "Synced with your PIN. Click to sign out." : "Sign in with your PIN to keep this page the same on all your devices.";
+    // Buttons the page placed itself mirror the badge.
+    document.querySelectorAll("[data-sync-button]").forEach(el => {
+      el.textContent = text;
+      el.dataset.syncState = shown;
+      el.title = b.title;
+    });
   }
 
   function build() {
@@ -208,6 +216,7 @@
     root.innerHTML = `
 <style>
   :host { all: initial; }
+  [hidden] { display: none !important; }
   * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
   .badge { position: fixed; z-index: 2147483000; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom));
     display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; cursor: pointer;
@@ -262,11 +271,16 @@
     const $ = id => root.getElementById(id);
     const scrim = $("scrim"), form = $("in"), out = $("out"), pin = $("pin"), err = $("err"), go = $("go");
     const close = () => { scrim.hidden = true; };
-    $("badge").addEventListener("click", () => {
+    if (!showBadge) $("badge").hidden = true;
+    const openPanel = () => {
       scrim.hidden = false;
       form.hidden = !!creds; out.hidden = !creds;
       err.textContent = ""; pin.value = "";
       if (!creds) setTimeout(() => pin.focus(), 0);
+    };
+    $("badge").addEventListener("click", openPanel);
+    document.addEventListener("click", e => {
+      if (e.target.closest && e.target.closest("[data-sync-button]")) { e.preventDefault(); openPanel(); }
     });
     root.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", close));
     scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
@@ -297,7 +311,7 @@
       if (!/^\d{6,8}$/.test(String(pin))) return false;
       say("saving");
       const c = await derive(String(pin));
-      if (creds && creds.seed === c.seed) { await syncAll(); return true; }
+      if (creds && creds.seed === c.seed) { await syncAll(); if (!keys.length) state = "ok"; say(); return true; }
       // A different account than before (or the first sign-in here): merge what is on this device into it.
       let all = [];
       try { all = JSON.parse(ls.get(ALL_KEYS)) || []; } catch (e) {}
@@ -305,6 +319,7 @@
       creds = c;
       ls.set(CREDS, JSON.stringify(c));
       await syncAll();
+      if (!keys.length) state = "ok";
       say();
       return true;
     },
