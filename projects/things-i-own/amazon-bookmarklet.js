@@ -9,44 +9,54 @@
   const TR = location.hostname.endsWith(".tr");
   const say = makeBox();
 
-  // Which years: the year menu on the orders page, else the last 15 years.
-  const opts = [...document.querySelectorAll('select[name="timeFilter"] option, select#time-filter option, select#orderFilter option')]
-    .map(o => o.value).filter(v => /^year-\d{4}$/.test(v));
+  // Every year Amazon offers in its menu (or back to 2010), every page of each year.
   const now = new Date().getFullYear();
-  const years = opts.length ? [...new Set(opts)].map(v => +v.slice(5)) : Array.from({ length: 15 }, (_, i) => now - i);
-  const ans = prompt(TR ? `Hangi yıllar? Örnek: ${now} veya 2020-${now}. Hepsi için boş bırakın.` : `Which years? e.g. ${now} or 2020-${now}. Leave empty for all.`, "");
-  if (ans === null) { say.close(); return; }
-  let pick = years;
-  const m = ans.trim().match(/^(\d{4})(?:\s*-\s*(\d{4}))?$/);
-  if (m) { const a = +m[1], b = +(m[2] || m[1]); pick = years.filter(y => y >= Math.min(a, b) && y <= Math.max(a, b)); if (!pick.length) pick = [a]; }
+  const offered = [...document.querySelectorAll('option[value^="year-"], a[href*="timeFilter=year-"]')]
+    .map(e => +((e.value || e.getAttribute("href") || "").match(/year-(\d{4})/) || [])[1]).filter(Boolean);
+  const years = [...new Set([...offered, ...Array.from({ length: now - 2009 }, (_, i) => now - i)])].sort((a, b) => b - a);
 
   const items = [], seen = new Set(), log = [];
-  // The page you're looking at counts too, in case fetching other pages doesn't work.
   const here = orderCards(document);
   here.forEach(readOrder);
   log.push(`here:${here.length}/${items.length}`);
-  const base = new URL(location.href);
-  const path = /order-history|your-orders/.test(base.pathname) ? base.pathname : "/gp/css/order-history";
-  for (const y of pick.sort((a, b) => b - a)) {
-    for (let start = 0, guard = 0; guard < 60; start += 10, guard++) {
+  const path = /order-history|your-orders/.test(location.pathname) ? location.pathname : "/gp/css/order-history";
+  let frame, fetchWorks = false;
+  for (const y of years) {
+    let yearCards = 0;
+    for (let start = 0; start < 1000; start += 10) {
       say(`${TR ? "Okunuyor" : "Reading"} ${y}… ${items.length} ${TR ? "ürün" : "items"}`);
       const u = new URL(path, location.origin);
       u.searchParams.set("timeFilter", "year-" + y);
       u.searchParams.set("startIndex", String(start));
-      let doc;
+      let doc = null, cards = [];
       try {
         const r = await fetch(u, { credentials: "include" });
         doc = new DOMParser().parseFromString(await r.text(), "text/html");
-        if (start === 0 && log.length < 6) log.push(`${y}:${r.status}:${new URL(r.url).pathname}:${(doc.title || "").slice(0, 30)}:${doc.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length}`);
-      } catch (e) { log.push(`${y}:err:${e.message}`); break; }
-      const before = items.length, cards = orderCards(doc);
-      if (start === 0 && log.length < 7) log.push(`${y}:cards:${cards.length}`);
+        cards = orderCards(doc);
+      } catch (e) {}
+      // Nothing in the raw page: let the page run its own scripts in a hidden frame and read that.
+      if (!cards.length && !fetchWorks) { doc = await framed(u) || doc; cards = doc ? orderCards(doc) : []; }
+      else if (cards.length) fetchWorks = true;
+      yearCards += cards.length;
+      if (start === 0) log.push(`${y}:${cards.length}`);
+      cards.forEach(readOrder);
+      const next = doc && doc.querySelector(".a-pagination .a-last:not(.a-disabled) a");
+      if (!next && cards.length < 10) break;
       if (!cards.length) break;
-      for (const c of cards) readOrder(c);
-      const next = doc.querySelector(".a-pagination .a-last:not(.a-disabled) a");
-      if (!next || items.length === before) break;
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 300));
     }
+    // Years before the oldest one with orders are empty; stop after three empty years in a row below it.
+    if (!yearCards && y < now - 2 && !offered.includes(y) && log.slice(-3).every(l => /:0$/.test(l))) break;
+  }
+  if (frame) frame.remove();
+
+  async function framed(u) {
+    if (!frame) { frame = document.createElement("iframe"); frame.style.cssText = "position:fixed;width:1200px;height:800px;left:-5000px;top:0;opacity:0"; document.body.append(frame); }
+    return new Promise(res => {
+      const t = setTimeout(() => res(null), 20000);
+      frame.onload = () => setTimeout(() => { clearTimeout(t); try { res(frame.contentDocument); } catch (e) { res(null); } }, 1500);
+      frame.src = u.href;
+    });
   }
 
   if (!items.length) {
@@ -66,7 +76,7 @@
     if (b64.length < 1500000) href = TARGET + "#amz=" + b64;
   } catch (e) {}
   const file = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-  say(`${items.length} ${TR ? "ürün bulundu." : "items found."}`, true, [
+  say(`${items.length} ${TR ? "ürün bulundu" : "items found"} (${log.filter(l => /^\d{4}:[1-9]/.test(l)).map(l => l.split(":")[0]).join(", ")}).`, true, [
     href && [TR ? "Things I own'da aç" : "Open in Things I own", href, "_blank"],
     [TR ? "Dosya olarak indir" : "Download as file", file, "", "amazon-orders.json"],
   ]);
