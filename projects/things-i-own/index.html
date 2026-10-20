@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>Things I own · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  :root {
+    --bg: #eef1f4; --fg: #16202b; --muted: #5b6876; --line: #d3dae2; --accent: #2b4fd8;
+    --card: #ffffff; --danger: #b42318; --warn: #9a5b00; --warn-bg: #fff2d6; --ph: #dde3ea;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; --card: #161d25; --danger: #ff8a7a; --warn: #ffc666; --warn-bg: #3a2c10; --ph: #222b35; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; --card: #161d25; --danger: #ff8a7a; --warn: #ffc666; --warn-bg: #3a2c10; --ph: #222b35; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 60rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 2rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+  .lede { margin: .5rem 0 0; color: var(--muted); max-width: 40rem; }
+  main { display: grid; gap: 1.25rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+  input, textarea, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .65rem; width: 100%; min-width: 0; }
+  textarea { min-height: 6rem; resize: vertical; }
+  button { font: inherit; font-size: .9rem; cursor: pointer; border-radius: 8px; padding: .45rem .85rem; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  button.danger { color: var(--danger); }
+  button:hover { filter: brightness(.96); }
+  button:disabled { opacity: .6; cursor: progress; }
+  .tools { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .tools input[type=search] { flex: 1 1 12rem; width: auto; }
+  .tools select { width: auto; flex: 1 1 9rem; }
+  @media (min-width: 40rem) { .tools select { flex: 0 1 auto; } }
+  .tools .label { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .summary { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+
+  ul.grid { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
+  .card > button { all: unset; cursor: pointer; display: grid; grid-template-rows: auto 1fr; border-radius: 12px; }
+  .card > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card .pic { aspect-ratio: 4 / 3; background: var(--ph); display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 2rem; }
+  .card .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .body { padding: .7rem .85rem .85rem; display: grid; gap: .2rem; align-content: start; }
+  .card h2 { font-size: 1.02rem; margin: 0; line-height: 1.3; overflow-wrap: anywhere; }
+  .card .sub { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+  .chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .25rem; }
+  .chip { font-family: var(--mono); font-size: .7rem; border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; color: var(--muted); white-space: nowrap; }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+  .empty { color: var(--muted); text-align: center; padding: 2.5rem 1rem; border: 1px dashed var(--line); border-radius: 12px; grid-column: 1 / -1; }
+
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); padding: 0; width: min(40rem, calc(100% - 24px)); max-height: calc(100dvh - 24px); }
+  dialog { overflow-x: hidden; }
+  dialog::backdrop { background: rgba(10, 15, 20, .55); }
+  .dlg { display: grid; gap: 1rem; padding: 1.1rem; }
+  .dlg-head { display: flex; align-items: start; gap: .75rem; }
+  .dlg-head h2 { font-family: var(--display); font-size: 1.5rem; margin: 0; flex: 1; line-height: 1.15; overflow-wrap: anywhere; }
+  .x { padding: .3rem .6rem; line-height: 1; font-size: 1.1rem; }
+  label.f { display: grid; gap: .25rem; font-size: .85rem; color: var(--muted); }
+  label.f > span b { color: var(--fg); }
+  .two { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+  .price { display: flex; gap: .4rem; }
+  .price select { width: 6rem; flex: none; }
+  details { border: 1px solid var(--line); border-radius: 10px; padding: .1rem .8rem; }
+  details[open] { padding-bottom: .8rem; }
+  summary { cursor: pointer; padding: .5rem 0; font-weight: 700; }
+  details .two { margin-top: .4rem; }
+  .hint { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  .thumbs { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .thumb { position: relative; width: 5.5rem; height: 5.5rem; border-radius: 8px; overflow: hidden; background: var(--ph); border: 2px solid transparent; }
+  .thumb.cover { border-color: var(--accent); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .rm { position: absolute; top: 3px; right: 3px; padding: 0 .4rem; font-size: .9rem; line-height: 1.4; border-radius: 6px; }
+  .thumb .cv { position: absolute; left: 3px; bottom: 3px; padding: 0 .35rem; font-size: .7rem; line-height: 1.5; border-radius: 6px; }
+  .thumb.cover .cv { display: none; }
+  .addbox { width: 5.5rem; height: 5.5rem; border: 1px dashed var(--line); border-radius: 8px; display: grid; place-items: center; text-align: center; font-size: .8rem; color: var(--muted); padding: .3rem; }
+  ul.files { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+  ul.files li { display: flex; gap: .5rem; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: .35rem .5rem .35rem .7rem; }
+  ul.files li .n { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .9rem; }
+  ul.files li .s { font-family: var(--mono); font-size: .7rem; color: var(--muted); white-space: nowrap; }
+  ul.files a { color: var(--accent); }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .row .grow { flex: 1; }
+
+  .gallery { display: grid; gap: .5rem; }
+  .gallery .main { background: var(--ph); border-radius: 10px; overflow: hidden; display: grid; place-items: center; min-height: 8rem; }
+  .gallery .main img { max-width: 100%; max-height: 60dvh; display: block; cursor: zoom-in; }
+  .gallery .strip { display: flex; gap: .4rem; overflow-x: auto; }
+  .gallery .strip button { all: unset; cursor: pointer; width: 4rem; height: 4rem; flex: none; border-radius: 6px; overflow: hidden; border: 2px solid transparent; background: var(--ph); }
+  .gallery .strip button[aria-current="true"] { border-color: var(--accent); }
+  .gallery .strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .away { color: var(--muted); font-size: .85rem; padding: 1rem; text-align: center; }
+  dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0; }
+  dl.facts dt { color: var(--muted); font-size: .85rem; }
+  dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+  .desc { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .sect { font-family: var(--mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 .35rem; }
+  .linkout { color: var(--accent); overflow-wrap: anywhere; }
+  .meta { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+
+  #zoom { width: auto; max-width: calc(100% - 16px); background: #000; border: 0; }
+  #zoom img { display: block; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); cursor: zoom-out; }
+
+  .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .6rem .8rem .6rem 1rem; border-radius: 10px; display: flex; gap: .75rem; align-items: center; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+  .toast button { background: transparent; color: var(--bg); border-color: var(--bg); padding: .25rem .6rem; }
+  .toast[hidden] { display: none; }
+</style>
+<script src="../../sync.js?v=3" data-keys="dwine1-things-v1"></script>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="../../index.html">← All projects</a>
+    <header>
+      <h1>Things I own</h1>
+      <p class="lede">Keep a record of your things with photos, a description, a link and PDFs like receipts or manuals. The details sync when you sign in; photos and PDFs stay on this device, so use Backup to move them.</p>
+    </header>
+    <main>
+      <div class="tools">
+        <button type="button" class="primary" id="add">+ Add a thing</button>
+        <input id="search" type="search" placeholder="Search your things" aria-label="Search your things">
+        <select id="cat" aria-label="Category"><option value="">All categories</option></select>
+        <select id="sort" aria-label="Sort">
+          <option value="new">Newest added</option>
+          <option value="name">Name A–Z</option>
+          <option value="price">Price, high to low</option>
+          <option value="bought">Bought, newest</option>
+          <option value="warranty">Warranty ends soonest</option>
+        </select>
+      </div>
+      <div class="tools">
+        <span class="summary" id="summary"></span>
+        <span class="grow" style="flex:1"></span>
+        <button type="button" id="export" title="One file with every thing, photo and PDF">Backup</button>
+        <button type="button" id="import">Import</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+      <ul class="grid" id="list"></ul>
+    </main>
+  </div>
+
+  <dialog id="edit" aria-labelledby="editTitle">
+    <form class="dlg" id="form" method="dialog" autocomplete="off">
+      <div class="dlg-head"><h2 id="editTitle">Add a thing</h2><button type="button" class="x" data-close aria-label="Close">×</button></div>
+      <label class="f"><span><b>Name</b></span><input id="f-name" required maxlength="200" placeholder="e.g. MacBook Air, grandma's watch"></label>
+      <label class="f"><span>Category</span><input id="f-category" list="cats" maxlength="60" placeholder="e.g. Electronics"></label>
+      <datalist id="cats"></datalist>
+      <div class="f" style="display:grid;gap:.35rem">
+        <span class="hint">Photos · the blue one is the cover</span>
+        <div class="thumbs" id="f-photos"></div>
+        <input type="file" id="photoFile" accept="image/*" multiple hidden>
+      </div>
+      <label class="f"><span>Description</span><textarea id="f-description" placeholder="What it is, details worth remembering"></textarea></label>
+      <label class="f"><span>Link</span><input id="f-link" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://… product page, listing, manual"></label>
+      <div style="display:grid;gap:.35rem">
+        <span class="hint">PDFs · receipt, manual, warranty card</span>
+        <ul class="files" id="f-pdfs"></ul>
+        <div><button type="button" id="addPdf">+ Add PDF</button></div>
+        <input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+      <details id="more">
+        <summary>More details</summary>
+        <div class="two">
+          <label class="f"><span>Brand</span><input id="f-brand" maxlength="80"></label>
+          <label class="f"><span>Model</span><input id="f-model" maxlength="80"></label>
+          <label class="f"><span>Serial number</span><input id="f-serial" maxlength="80"></label>
+          <label class="f"><span>Condition</span>
+            <select id="f-condition"><option value=""></option><option>New</option><option>Like new</option><option>Good</option><option>Fair</option><option>Needs repair</option><option>Broken</option></select></label>
+          <label class="f"><span>Bought on</span><input id="f-purchased" type="date"></label>
+          <label class="f"><span>Price paid</span>
+            <span class="price"><input id="f-price" inputmode="decimal" placeholder="0.00" maxlength="20">
+              <select id="f-currency" aria-label="Currency"><option>USD</option><option>TRY</option><option>EUR</option><option>GBP</option></select></span></label>
+          <label class="f"><span>Bought from</span><input id="f-store" maxlength="80" placeholder="Store or website"></label>
+          <label class="f"><span>Warranty until</span><input id="f-warranty" type="date"></label>
+          <label class="f"><span>Where it's kept</span><input id="f-location" maxlength="80" placeholder="e.g. Bedroom closet"></label>
+        </div>
+      </details>
+      <div class="row">
+        <span class="hint grow" id="formHint"></span>
+        <button type="button" data-close>Cancel</button>
+        <button type="submit" class="primary" id="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="view" aria-labelledby="viewTitle">
+    <div class="dlg">
+      <div class="dlg-head"><h2 id="viewTitle"></h2><button type="button" class="x" data-close aria-label="Close">×</button></div>
+      <div id="viewBody" style="display:grid;gap:1rem"></div>
+      <div class="row">
+        <button type="button" class="danger" id="v-remove">Remove</button>
+        <span class="grow"></span>
+        <button type="button" id="v-edit" class="primary">Edit</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="zoom" aria-label="Photo"><img alt=""></dialog>
+
+  <div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button type="button" id="undo" hidden>Undo</button></div>
+
+<script>
+(() => {
+  // Item details live in localStorage (synced by sync.js). Photos and PDFs are too big for that, so they
+  // live in IndexedDB on this device; each item keeps a tiny cover thumbnail so other devices still show it.
+  const KEY = "dwine1-things-v1";
+  const $ = id => document.getElementById(id);
+  const DEFAULT_CATS = ["Electronics", "Phones & computers", "Furniture", "Appliances", "Kitchen", "Clothing", "Shoes", "Jewelry & watches", "Tools", "Sports & outdoors", "Books", "Art & decor", "Music", "Games", "Vehicles", "Documents", "Other"];
+  const FIELDS = ["name", "category", "description", "link", "brand", "model", "serial", "condition", "purchased", "price", "currency", "store", "warranty", "location"];
+  const MAX_PDF = 30 * 1024 * 1024;
+
+  let items = load();
+  let editing = null;          // working copy while the edit dialog is open
+  let viewingId = null;
+  let lastRemoved = null, toastTimer = null;
+
+  // --- storage ---------------------------------------------------------------
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(data) ? data.filter(i => i && i.id) : [];
+    } catch { return []; }
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); return true; }
+    catch { toast("Could not save in this browser. Use Backup to keep a copy."); return false; }
+  }
+  const live = () => items.filter(i => !i.deleted);
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  const dbp = new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open("dwine1-things", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("files", { keyPath: "id" });
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  });
+  dbp.catch(() => toast("This browser won't store photos and PDFs here (private mode?). Details still save."));
+  function idb(mode, fn) {
+    return dbp.then(db => new Promise((res, rej) => {
+      const t = db.transaction("files", mode), s = t.objectStore("files");
+      const r = fn(s);
+      t.oncomplete = () => res(r && "result" in r ? r.result : undefined);
+      t.onerror = t.onabort = () => rej(t.error);
+    }));
+  }
+  const putFile = rec => idb("readwrite", s => s.put(rec));
+  const getFile = id => idb("readonly", s => s.get(id)).catch(() => undefined);
+  const delFile = id => idb("readwrite", s => s.delete(id)).catch(() => {});
+  const allFiles = () => idb("readonly", s => s.getAll());
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+
+  const urls = new Map();       // file id -> object URL
+  async function fileUrl(id) {
+    if (urls.has(id)) return urls.get(id);
+    const rec = await getFile(id);
+    if (!rec || !rec.blob) return null;
+    const u = URL.createObjectURL(rec.blob);
+    urls.set(id, u);
+    return u;
+  }
+
+  // --- images ----------------------------------------------------------------
+  function loadImage(blob) {
+    return new Promise((res, rej) => {
+      const u = URL.createObjectURL(blob), img = new Image();
+      img.onload = () => { URL.revokeObjectURL(u); res(img); };
+      img.onerror = () => { URL.revokeObjectURL(u); rej(new Error("Can't read this image")); };
+      img.src = u;
+    });
+  }
+  function shrink(img, max, q) {
+    const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+  const toBlob = (c, q) => new Promise(r => c.toBlob(r, "image/jpeg", q));
+  async function preparePhoto(file) {
+    try {
+      const img = await loadImage(file);
+      const blob = await toBlob(shrink(img, 1800, .85), .85);
+      const thumb = shrink(img, 160, .6).toDataURL("image/jpeg", .6);
+      return { blob: blob || file, thumb };
+    } catch { return { blob: file, thumb: "" }; }   // e.g. HEIC in a browser that can't decode it: keep as is
+  }
+  async function thumbFor(id) {
+    const rec = await getFile(id);
+    if (!rec) return "";
+    try { return shrink(await loadImage(rec.blob), 160, .6).toDataURL("image/jpeg", .6); } catch { return ""; }
+  }
+
+  // --- formatting ------------------------------------------------------------
+  function money(v, cur) {
+    const n = Number(v); if (!isFinite(n)) return "";
+    try { return new Intl.NumberFormat(undefined, { style: "currency", currency: cur || "USD" }).format(n); }
+    catch { return `${n.toFixed(2)} ${cur || ""}`.trim(); }
+  }
+  const day = s => s ? new Date(s + "T12:00:00").toLocaleDateString(undefined, { dateStyle: "medium" }) : "";
+  const size = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
+  function daysLeft(d) {
+    if (!d) return null;
+    const t = new Date(d + "T23:59:59"), now = new Date();
+    return Math.ceil((t - now) / 86400000);
+  }
+  function safeLink(s) {
+    s = (s || "").trim(); if (!s) return "";
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s;
+    try { const u = new URL(s); return /^https?:$/.test(u.protocol) ? u.href : ""; } catch { return ""; }
+  }
+  function el(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+      else if (k.startsWith("on")) e[k] = v; else if (v != null && v !== false) e.setAttribute(k, v === true ? "" : v);
+    }
+    for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k);
+    return e;
+  }
+
+  // --- list ------------------------------------------------------------------
+  const list = $("list"), search = $("search"), catSel = $("cat"), sortSel = $("sort");
+  function categories() {
+    const used = live().map(i => i.category).filter(Boolean);
+    return [...new Set([...used, ...DEFAULT_CATS])];
+  }
+  function fillCats() {
+    const used = [...new Set(live().map(i => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const cur = catSel.value;
+    catSel.length = 1;
+    for (const c of used) catSel.append(el("option", { value: c, text: c }));
+    catSel.value = used.includes(cur) ? cur : "";
+    $("cats").textContent = "";
+    for (const c of categories()) $("cats").append(el("option", { value: c }));
+  }
+  function render() {
+    fillCats();
+    const q = search.value.trim().toLocaleLowerCase(), cat = catSel.value;
+    const all = live();
+    let shown = all.filter(i => (!cat || i.category === cat) &&
+      (!q || FIELDS.map(f => i[f] || "").join("\n").toLocaleLowerCase().includes(q)));
+    const by = {
+      new: (a, b) => b.created - a.created,
+      name: (a, b) => (a.name || "").localeCompare(b.name || ""),
+      price: (a, b) => (Number(b.price) || 0) - (Number(a.price) || 0),
+      bought: (a, b) => (b.purchased || "").localeCompare(a.purchased || ""),
+      warranty: (a, b) => (a.warranty || "9999").localeCompare(b.warranty || "9999"),
+    }[sortSel.value];
+    shown.sort(by);
+
+    const totals = {};
+    for (const i of all) if (i.price !== "" && isFinite(Number(i.price)) && i.price != null) totals[i.currency || "USD"] = (totals[i.currency || "USD"] || 0) + Number(i.price);
+    const worth = Object.entries(totals).map(([c, v]) => money(v, c)).join(" + ");
+    $("summary").textContent = all.length
+      ? `${shown.length === all.length ? all.length : `${shown.length} of ${all.length}`} thing${all.length === 1 ? "" : "s"}` + (worth ? ` · paid ${worth}` : "")
+      : "";
+
+    list.textContent = "";
+    if (!shown.length) {
+      list.append(el("li", { class: "empty", text: all.length ? "Nothing matches your search." : "Nothing here yet. Tap “Add a thing” to add your first one." }));
+      return;
+    }
+    for (const i of shown) {
+      const pic = el("div", { class: "pic", "aria-hidden": "true" });
+      if (i.thumb) pic.append(el("img", { src: i.thumb, alt: "" }));
+      else pic.textContent = "◇";
+      const cover = i.photos && i.photos[0];
+      if (cover) fileUrl(cover.id).then(u => { if (u) { pic.textContent = ""; pic.append(el("img", { src: u, alt: "", loading: "lazy" })); } });
+      const chips = el("div", { class: "chips" });
+      if (i.price !== "" && i.price != null && isFinite(Number(i.price))) chips.append(el("span", { class: "chip", text: money(i.price, i.currency) }));
+      const dl = daysLeft(i.warranty);
+      if (dl != null && dl >= 0 && dl <= 60) chips.append(el("span", { class: "chip warn", text: dl === 0 ? "Warranty ends today" : `Warranty ends in ${dl}d` }));
+      if (i.pdfs && i.pdfs.length) chips.append(el("span", { class: "chip", text: `${i.pdfs.length} PDF` }));
+      const sub = [i.category, [i.brand, i.model].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+      list.append(el("li", { class: "card" },
+        el("button", { type: "button", onclick: () => openView(i.id), "aria-label": `Open ${i.name}` },
+          pic,
+          el("div", { class: "body" }, el("h2", { text: i.name || "Untitled" }), sub && el("div", { class: "sub", text: sub }), chips))));
+    }
+  }
+  search.addEventListener("input", render);
+  catSel.addEventListener("change", render);
+  sortSel.addEventListener("change", () => { try { localStorage.setItem("dwine1-things-sort", sortSel.value); } catch {} render(); });
+  try { const s = localStorage.getItem("dwine1-things-sort"); if (s) sortSel.value = s; } catch {}
+
+  // --- view one thing --------------------------------------------------------
+  const view = $("view");
+  async function openView(id) {
+    const i = items.find(x => x.id === id && !x.deleted); if (!i) return;
+    viewingId = id;
+    $("viewTitle").textContent = i.name || "Untitled";
+    const body = $("viewBody"); body.textContent = "";
+
+    const photos = i.photos || [];
+    if (photos.length) {
+      const main = el("div", { class: "main" }), strip = el("div", { class: "strip" });
+      const g = el("div", { class: "gallery" }, main, photos.length > 1 && strip);
+      body.append(g);
+      const got = await Promise.all(photos.map(p => fileUrl(p.id)));
+      const show = n => {
+        main.textContent = "";
+        if (got[n]) {
+          const img = el("img", { src: got[n], alt: `${i.name} photo ${n + 1}` });
+          img.onclick = () => { $("zoom").querySelector("img").src = got[n]; $("zoom").showModal(); };
+          main.append(img);
+        } else {
+          if (n === 0 && i.thumb) main.append(el("img", { src: i.thumb, alt: "", style: "width:8rem;cursor:default" }));
+          main.append(el("div", { class: "away", text: "This photo is stored on another device. Import a Backup from there to see it here." }));
+        }
+        [...strip.children].forEach((b, k) => b.setAttribute("aria-current", k === n ? "true" : "false"));
+      };
+      photos.forEach((p, n) => strip.append(el("button", { type: "button", "aria-label": `Photo ${n + 1}`, onclick: () => show(n) },
+        got[n] ? el("img", { src: got[n], alt: "" }) : (n === 0 && i.thumb ? el("img", { src: i.thumb, alt: "" }) : null))));
+      show(0);
+    }
+
+    if (i.description) body.append(el("div", {}, el("p", { class: "sect", text: "Description" }), el("p", { class: "desc", text: i.description })));
+    const link = safeLink(i.link);
+    if (link) body.append(el("div", {}, el("p", { class: "sect", text: "Link" }), el("a", { class: "linkout", href: link, target: "_blank", rel: "noopener noreferrer", text: link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") })));
+
+    if (i.pdfs && i.pdfs.length) {
+      const ul = el("ul", { class: "files" });
+      for (const p of i.pdfs) {
+        const u = await fileUrl(p.id);
+        ul.append(el("li", {},
+          el("span", { class: "n", text: p.name }),
+          el("span", { class: "s", text: u ? size(p.size) : "on another device" }),
+          u && el("a", { href: u, target: "_blank", rel: "noopener", text: "Open" }),
+          u && el("a", { href: u, download: p.name, text: "Download" })));
+      }
+      body.append(el("div", {}, el("p", { class: "sect", text: "PDFs" }), ul));
+    }
+
+    const facts = [
+      ["Category", i.category], ["Brand", i.brand], ["Model", i.model], ["Serial number", i.serial], ["Condition", i.condition],
+      ["Bought on", day(i.purchased)], ["Price paid", i.price !== "" && i.price != null && isFinite(Number(i.price)) ? money(i.price, i.currency) : ""],
+      ["Bought from", i.store], ["Warranty until", warrantyText(i.warranty)], ["Where it's kept", i.location],
+    ].filter(f => f[1]);
+    if (facts.length) body.append(el("dl", { class: "facts" }, facts.map(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])));
+    body.append(el("p", { class: "meta", text: `Added ${new Date(i.created).toLocaleString()}` + (i.updated !== i.created ? ` · edited ${new Date(i.updated).toLocaleString()}` : "") }));
+    if (!view.open) view.showModal();
+  }
+  function warrantyText(d) {
+    if (!d) return "";
+    const n = daysLeft(d);
+    return day(d) + (n < 0 ? " (ended)" : n === 0 ? " (ends today)" : ` (${n} day${n === 1 ? "" : "s"} left)`);
+  }
+  $("v-edit").onclick = () => { const id = viewingId; view.close(); openEdit(id); };
+  $("v-remove").onclick = () => { const id = viewingId; view.close(); remove(id); };
+  $("zoom").onclick = () => $("zoom").close();
+  view.addEventListener("close", () => { viewingId = null; });
+
+  // --- add / edit ------------------------------------------------------------
+  const edit = $("edit"), form = $("form");
+  function openEdit(id) {
+    const i = id && items.find(x => x.id === id && !x.deleted);
+    editing = {
+      id: i ? i.id : null,
+      photos: i ? (i.photos || []).map(p => ({ id: p.id })) : [],
+      pdfs: i ? (i.pdfs || []).map(p => ({ ...p })) : [],
+      fresh: new Map(),        // new file id -> { blob, thumb, name, type }
+      thumbs: new Map(),       // photo id -> preview url
+    };
+    $("editTitle").textContent = i ? "Edit thing" : "Add a thing";
+    $("save").textContent = i ? "Save changes" : "Save";
+    for (const f of FIELDS) $("f-" + f).value = i ? (i[f] ?? "") : "";
+    if (!i) { try { $("f-currency").value = localStorage.getItem("dwine1-things-currency") || "USD"; } catch { $("f-currency").value = "USD"; } }
+    $("more").open = !!i && ["brand", "model", "serial", "condition", "purchased", "price", "store", "warranty", "location"].some(f => i[f]);
+    $("formHint").textContent = "";
+    drawPhotos(); drawPdfs();
+    edit.showModal();
+    if (!i) $("f-name").focus();
+  }
+  $("add").onclick = () => openEdit(null);
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
+
+  async function drawPhotos() {
+    const box = $("f-photos"); box.textContent = "";
+    editing.photos.forEach((p, n) => {
+      const img = el("img", { alt: `Photo ${n + 1}` });
+      const fresh = editing.fresh.get(p.id);
+      if (fresh) { if (!editing.thumbs.has(p.id)) editing.thumbs.set(p.id, URL.createObjectURL(fresh.blob)); img.src = editing.thumbs.get(p.id); }
+      else fileUrl(p.id).then(u => { if (u) img.src = u; else { const it = items.find(x => x.id === editing.id); if (n === 0 && it && it.thumb) img.src = it.thumb; } });
+      box.append(el("div", { class: "thumb" + (n === 0 ? " cover" : "") }, img,
+        el("button", { type: "button", class: "rm", "aria-label": `Remove photo ${n + 1}`, onclick: () => { editing.photos.splice(n, 1); drawPhotos(); } , text: "×" }),
+        el("button", { type: "button", class: "cv", onclick: () => { editing.photos.unshift(...editing.photos.splice(n, 1)); drawPhotos(); }, text: "Cover" })));
+    });
+    box.append(el("button", { type: "button", class: "addbox", onclick: () => $("photoFile").click(), text: "+ Add photos" }));
+  }
+  $("photoFile").onchange = async e => {
+    const files = [...e.target.files]; e.target.value = "";
+    if (!files.length || !editing) return;
+    $("formHint").textContent = `Preparing ${files.length} photo${files.length === 1 ? "" : "s"}…`;
+    $("save").disabled = true;
+    for (const f of files) {
+      const p = await preparePhoto(f), id = "f" + uid();
+      editing.fresh.set(id, { blob: p.blob, thumb: p.thumb, name: f.name, type: p.blob.type || f.type });
+      editing.photos.push({ id });
+      drawPhotos();
+    }
+    $("formHint").textContent = ""; $("save").disabled = false;
+  };
+
+  function drawPdfs() {
+    const ul = $("f-pdfs"); ul.textContent = "";
+    editing.pdfs.forEach((p, n) => ul.append(el("li", {},
+      el("span", { class: "n", text: p.name }), el("span", { class: "s", text: size(p.size) }),
+      el("button", { type: "button", class: "danger", onclick: () => { editing.pdfs.splice(n, 1); drawPdfs(); }, text: "Remove", "aria-label": `Remove ${p.name}` }))));
+  }
+  $("addPdf").onclick = () => $("pdfFile").click();
+  $("pdfFile").onchange = e => {
+    const files = [...e.target.files]; e.target.value = "";
+    for (const f of files) {
+      if (f.size > MAX_PDF) { $("formHint").textContent = `${f.name} is over 30 MB, skipped.`; continue; }
+      const id = "f" + uid();
+      editing.fresh.set(id, { blob: f, name: f.name, type: f.type || "application/pdf" });
+      editing.pdfs.push({ id, name: f.name, size: f.size });
+    }
+    drawPdfs();
+  };
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const vals = {};
+    for (const f of FIELDS) vals[f] = $("f-" + f).value.trim();
+    if (!vals.name) { $("f-name").focus(); return; }
+    vals.price = vals.price.replace(/[^\d.,-]/g, "");
+    // "1.199,50" and "1,199.50" both mean 1199.50: a comma with 1-2 digits after it, and no dot later, is the decimal point.
+    if (/,\d{1,2}$/.test(vals.price) && vals.price.lastIndexOf(",") > vals.price.lastIndexOf(".")) vals.price = vals.price.replace(/\./g, "").replace(",", ".");
+    else vals.price = vals.price.replace(/,/g, "");
+    if (vals.price && !isFinite(Number(vals.price))) vals.price = "";
+    $("save").disabled = true;
+    try {
+      // Write new files first, then the item, so the item never points at a file that isn't there.
+      const keepIds = new Set([...editing.photos, ...editing.pdfs].map(p => p.id));
+      for (const [id, f] of editing.fresh) if (keepIds.has(id)) await putFile({ id, blob: f.blob, name: f.name, type: f.type });
+      const now = Date.now();
+      const old = editing.id && items.find(x => x.id === editing.id);
+      const coverId = editing.photos[0] && editing.photos[0].id;
+      let thumb = "";
+      if (coverId) {
+        if (editing.fresh.has(coverId)) thumb = editing.fresh.get(coverId).thumb;
+        else if (old && old.photos && old.photos[0] && old.photos[0].id === coverId) thumb = old.thumb || await thumbFor(coverId);
+        else thumb = await thumbFor(coverId);
+      }
+      const rec = { ...vals, photos: editing.photos.map(p => ({ id: p.id })), pdfs: editing.pdfs, thumb, updated: now };
+      if (old) {
+        const gone = [...(old.photos || []), ...(old.pdfs || [])].filter(p => !keepIds.has(p.id));
+        Object.assign(old, rec);
+        gone.forEach(p => delFile(p.id));
+      } else items.push({ id: uid(), created: now, ...rec });
+      try { localStorage.setItem("dwine1-things-currency", vals.currency || "USD"); } catch {}
+      if (!persist()) return;
+      const reopen = old && old.id;
+      edit.close(); render();
+      if (reopen) openView(reopen);
+    } catch (err) {
+      $("formHint").textContent = "Couldn't save the files: " + (err && err.message || err);
+    } finally { $("save").disabled = false; }
+  });
+  edit.addEventListener("close", () => {
+    if (editing) for (const u of editing.thumbs.values()) URL.revokeObjectURL(u);
+    editing = null;
+  });
+
+  // --- remove with undo --------------------------------------------------------
+  // A removed thing stays in the list as a tombstone so the removal syncs instead of coming back from another device.
+  function remove(id) {
+    const i = items.find(x => x.id === id); if (!i) return;
+    lastRemoved = { ...i };
+    Object.keys(i).forEach(k => { if (!["id", "created"].includes(k)) delete i[k]; });
+    Object.assign(i, { deleted: true, updated: Date.now() });
+    persist(); render();
+    toast(`Removed “${lastRemoved.name || "Untitled"}”`, true);
+  }
+  function toast(text, undo) {
+    $("toastText").textContent = text; $("undo").hidden = !undo; $("toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      $("toast").hidden = true;
+      if (lastRemoved) { [...(lastRemoved.photos || []), ...(lastRemoved.pdfs || [])].forEach(p => delFile(p.id)); lastRemoved = null; }
+    }, 7000);
+  }
+  $("undo").onclick = () => {
+    if (lastRemoved) {
+      const i = items.find(x => x.id === lastRemoved.id);
+      const back = { ...lastRemoved, updated: Date.now() };
+      if (i) { Object.keys(i).forEach(k => delete i[k]); Object.assign(i, back); } else items.push(back);
+      persist(); render();
+    }
+    lastRemoved = null; $("toast").hidden = true;
+  };
+
+  // --- backup / import -----------------------------------------------------------
+  const b64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+  $("export").onclick = async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try {
+      const want = new Set(live().flatMap(i => [...(i.photos || []), ...(i.pdfs || [])].map(p => p.id)));
+      let files = [];
+      try { files = (await allFiles()).filter(f => want.has(f.id)); } catch {}
+      const parts = [`{"app":"dwine1-things","version":1,"exported":${JSON.stringify(new Date().toISOString())},"items":${JSON.stringify(live())},"files":[`];
+      for (let n = 0; n < files.length; n++) {
+        const f = files[n];
+        parts.push((n ? "," : "") + JSON.stringify({ id: f.id, name: f.name, type: f.type || f.blob.type, data: await b64(f.blob) }));
+      }
+      parts.push("]}");
+      const blob = new Blob(parts, { type: "application/json" });
+      const a = el("a", { href: URL.createObjectURL(blob), download: `things-i-own-${new Date().toISOString().slice(0, 10)}.json` });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      const missing = want.size - files.length;
+      toast(`Backup saved: ${live().length} things, ${files.length} files` + (missing ? `, ${missing} on other devices not included` : "") + ".");
+    } finally { btn.disabled = false; }
+  };
+  $("import").onclick = () => $("importFile").click();
+  $("importFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      const incoming = (Array.isArray(data) ? data : data.items) || [];
+      let filesIn = 0;
+      for (const x of data.files || []) {
+        if (!x || !x.id || !x.data) continue;
+        const bin = Uint8Array.from(atob(x.data), c => c.charCodeAt(0));
+        await putFile({ id: String(x.id), blob: new Blob([bin], { type: x.type || "" }), name: x.name || "", type: x.type || "" });
+        filesIn++;
+      }
+      let added = 0, updated = 0;
+      for (const x of incoming) {
+        if (!x || !x.id || x.deleted || typeof x.name !== "string") continue;
+        const clean = { id: String(x.id), created: Number(x.created) || Date.now(), updated: Number(x.updated) || Date.now(),
+          photos: Array.isArray(x.photos) ? x.photos.filter(p => p && p.id).map(p => ({ id: String(p.id) })) : [],
+          pdfs: Array.isArray(x.pdfs) ? x.pdfs.filter(p => p && p.id).map(p => ({ id: String(p.id), name: String(p.name || "file.pdf"), size: Number(p.size) || 0 })) : [],
+          thumb: typeof x.thumb === "string" && x.thumb.startsWith("data:image/") ? x.thumb : "" };
+        for (const k of FIELDS) clean[k] = x[k] == null ? "" : String(x[k]);
+        const cur = items.find(i => i.id === clean.id);
+        if (!cur) { items.push(clean); added++; }
+        else if (cur.deleted || clean.updated > (cur.updated || 0)) { Object.keys(cur).forEach(k => delete cur[k]); Object.assign(cur, clean); updated++; }
+      }
+      urls.forEach(u => URL.revokeObjectURL(u)); urls.clear();
+      persist(); render();
+      toast(`Imported ${added} new, ${updated} updated, ${filesIn} photos/PDFs.`);
+    } catch { toast("That file isn't a Things I own backup."); }
+  };
+
+  // Another tab or device changed the list (sync.js fires this after it applies a change).
+  window.addEventListener("storage", e => {
+    if (e.key !== KEY) return;
+    items = load(); render();
+    if (viewingId && view.open) { if (items.some(x => x.id === viewingId && !x.deleted)) openView(viewingId); else view.close(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
