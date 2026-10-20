@@ -15,12 +15,16 @@
     .map(e => +((e.value || e.getAttribute("href") || "").match(/year-(\d{4})/) || [])[1]).filter(Boolean);
   const years = [...new Set([...offered, ...Array.from({ length: now - 2009 }, (_, i) => now - i)])].sort((a, b) => b - a);
 
+  // A small window on Amazon that can walk through the order pages like you would. Opened right away,
+  // while the tap still counts, so the popup blocker lets it through; only used if reading pages directly fails.
+  let pop = null;
+  try { pop = window.open("about:blank", "dwine1-amazon-pages", "width=480,height=640,left=40,top=40"); } catch (e) {}
   const items = [], seen = new Set(), log = [];
   const here = orderCards(document);
   here.forEach(readOrder);
   log.push(`here:${here.length}/${items.length}`);
   const path = /order-history|your-orders/.test(location.pathname) ? location.pathname : "/gp/css/order-history";
-  let frame, fetchWorks = false;
+  let fetchWorks = false, popWorks = null;
   for (const y of years) {
     let yearCards = 0;
     for (let start = 0; start < 1000; start += 10) {
@@ -34,9 +38,14 @@
         doc = new DOMParser().parseFromString(await r.text(), "text/html");
         cards = orderCards(doc);
       } catch (e) {}
-      // Nothing in the raw page: let the page run its own scripts in a hidden frame and read that.
-      if (!cards.length && !fetchWorks) { doc = await framed(u) || doc; cards = doc ? orderCards(doc) : []; }
-      else if (cards.length) fetchWorks = true;
+      if (start === 0 && log.length < 4) log.push(`f${y}:${doc ? (doc.title || "").slice(0, 25) + "/" + doc.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length : "x"}`);
+      if (cards.length) { if (!fetchWorks) { try { pop && pop.close(); } catch (e) {} } fetchWorks = true; }
+      // Nothing in the raw page: open it in the small window, let it run its own scripts, and read that.
+      else if (!fetchWorks && popWorks !== false) {
+        doc = await viaWindow(u);
+        cards = doc ? orderCards(doc) : [];
+        if (popWorks === null) popWorks = !!doc;
+      }
       yearCards += cards.length;
       if (start === 0) log.push(`${y}:${cards.length}`);
       cards.forEach(readOrder);
@@ -48,15 +57,23 @@
     // Years before the oldest one with orders are empty; stop after three empty years in a row below it.
     if (!yearCards && y < now - 2 && !offered.includes(y) && log.slice(-3).every(l => /:0$/.test(l))) break;
   }
-  if (frame) frame.remove();
+  try { pop && pop.close(); } catch (e) {}
+  log.push(pop ? `w:${popWorks}` : "w:blocked");
 
-  async function framed(u) {
-    if (!frame) { frame = document.createElement("iframe"); frame.style.cssText = "position:fixed;width:1200px;height:800px;left:-5000px;top:0;opacity:0"; document.body.append(frame); }
-    return new Promise(res => {
-      const t = setTimeout(() => res(null), 20000);
-      frame.onload = () => setTimeout(() => { clearTimeout(t); try { res(frame.contentDocument); } catch (e) { res(null); } }, 1500);
-      frame.src = u.href;
-    });
+  async function viaWindow(u) {
+    if (!pop || pop.closed) return null;
+    let old = null, settled = 0;
+    try { old = pop.document; pop.location.href = u.href; } catch (e) { return null; }
+    // Wait for the new page, then until orders show up on it (or it has sat loaded for ~2.5 s).
+    for (let t = 0; t < 70; t++) {
+      await new Promise(r => setTimeout(r, 300));
+      let d;
+      try { d = pop.document; } catch (e) { continue; }
+      if (!d || d === old || d.readyState === "loading") continue;
+      if (orderCards(d).length) return d;
+      if (d.readyState === "complete" && ++settled > 8) return d;
+    }
+    return null;
   }
 
   if (!items.length) {
@@ -76,7 +93,7 @@
     if (b64.length < 1500000) href = TARGET + "#amz=" + b64;
   } catch (e) {}
   const file = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-  say(`${items.length} ${TR ? "ürün bulundu" : "items found"} (${log.filter(l => /^\d{4}:[1-9]/.test(l)).map(l => l.split(":")[0]).join(", ")}).`, true, [
+  say(`${items.length} ${TR ? "ürün bulundu" : "items found"} (${log.filter(l => /^\d{4}:[1-9]/.test(l)).map(l => l.split(":")[0]).join(", ")}). [${log.slice(0, 12).join(" ")}]`, true, [
     href && [TR ? "Things I own'da aç" : "Open in Things I own", href, "_blank"],
     [TR ? "Dosya olarak indir" : "Download as file", file, "", "amazon-orders.json"],
   ]);
