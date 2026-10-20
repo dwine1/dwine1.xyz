@@ -229,7 +229,7 @@
           <li><b>Add the bookmark.</b> On a computer, drag this button to your bookmarks bar: <a class="bm" id="bm" href="#">＋ Things I own</a>
             <br><span class="hint">On a phone: <button type="button" id="bmCopy">Copy bookmark code</button>, bookmark any page, edit that bookmark and paste the code as its address.</span></li>
           <li><b>Open your orders</b> on Amazon, signed in: <a id="amzOrders" href="https://www.amazon.com.tr/gp/css/order-history" target="_blank" rel="noopener">amazon.com.tr → Siparişlerim</a>.</li>
-          <li><b>Tap the bookmark</b> there and choose the years. A dwine1.xyz tab opens with your items. If your browser blocks the new tab, it downloads <code>amazon-orders.json</code>; open that with Import here.</li>
+          <li><b>Tap the bookmark</b> there and choose the years. When it's done, tap <b>Open in Things I own</b> in the box at the top of the Amazon page to see your items here. <b>Download as file</b> also works: open that file with Import here.</li>
         </ol>
         <p class="hint" style="margin:0">Photos are shown from Amazon's servers and sync with the rest of the details. Items you've already imported are skipped.</p>
       </div>
@@ -732,6 +732,20 @@
     amazonReview(e.data);
   });
 
+  // The bookmarklet's "Open in Things I own" link carries the list as #amz=<deflated JSON, base64url>.
+  async function amazonFromHash() {
+    if (!location.hash.startsWith("#amz=")) return;
+    const b64 = location.hash.slice(5).replace(/-/g, "+").replace(/_/g, "/");
+    history.replaceState(null, "", location.pathname);
+    try {
+      const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+      const data = JSON.parse(text);
+      if (data && data.app === "dwine1-amazon-import") amazonReview(data);
+    } catch { toast("Couldn't read the Amazon list. Use “Download as file” and Import instead."); }
+  }
+  window.addEventListener("hashchange", amazonFromHash);
+
   function amazonReview(data) {
     const have = new Set(live().map(i => i.source).filter(Boolean));
     const host = String(data.site || "amazon.com.tr").replace(/^www\./, "").slice(0, 40);
@@ -803,6 +817,7 @@
   });
 
   render();
+  amazonFromHash();
 })();
 </script>
 </body>

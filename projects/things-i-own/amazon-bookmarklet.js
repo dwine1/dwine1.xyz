@@ -1,9 +1,10 @@
 // Runs on an Amazon "Your Orders" page (amazon.com.tr, amazon.com, ...) as a bookmarklet.
 // It reads every order for the years you pick, then sends names, photo links, dates and order numbers
 // to dwine1.xyz/projects/things-i-own, which shows them for review before anything is added.
+// The list travels in the link's #fragment, which browsers never send to any server.
 // Nothing is sent anywhere else. The Things I own page builds the bookmark link from this file.
 (async () => {
-  const TARGET = "https://dwine1.xyz/projects/things-i-own/index.html#amazon";
+  const TARGET = "https://dwine1.xyz/projects/things-i-own/index.html";
   if (!/(^|\.)amazon\.[a-z.]+$/.test(location.hostname)) { alert("Open your Amazon orders page first (Hesabım → Siparişlerim), then tap this bookmark again."); return; }
   const TR = location.hostname.endsWith(".tr");
   const say = makeBox();
@@ -18,9 +19,6 @@
   let pick = years;
   const m = ans.trim().match(/^(\d{4})(?:\s*-\s*(\d{4}))?$/);
   if (m) { const a = +m[1], b = +(m[2] || m[1]); pick = years.filter(y => y >= Math.min(a, b) && y <= Math.max(a, b)); if (!pick.length) pick = [a]; }
-
-  // Open the target now, while the tap still counts as a user action, so popup blockers allow it.
-  const win = window.open(TARGET, "dwine1-things");
 
   const items = [], seen = new Set(), log = [];
   // The page you're looking at counts too, in case fetching other pages doesn't work.
@@ -56,20 +54,22 @@
       `[${location.pathname} · ${document.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length} · ${log.join(" | ")}]`, true);
     return;
   }
-  say(`${items.length} ${TR ? "ürün bulundu, dwine1.xyz'ye gönderiliyor…" : "items found, sending to dwine1.xyz…"}`);
+  // Amazon cuts the link between its tabs and other sites, so hand the list over in a link the user taps.
   const payload = { app: "dwine1-amazon-import", version: 1, site: location.hostname, items };
-  let done = false;
-  window.addEventListener("message", e => { if (e.origin === "https://dwine1.xyz" && e.data === "dwine1-amazon-ok") done = true; });
-  for (let t = 0; t < 40 && !done; t++) {
-    try { win && win.postMessage(payload, "https://dwine1.xyz"); } catch (e) {}
-    await new Promise(r => setTimeout(r, 500));
-  }
-  if (done) { say(TR ? `Gönderildi: ${items.length} ürün. dwine1.xyz sekmesine geçin.` : `Sent ${items.length} items. Switch to the dwine1.xyz tab.`, true); return; }
-  // Popup blocked or closed: hand over a file instead, which the page's Import button accepts.
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(payload)], { type: "application/json" }));
-  a.download = "amazon-orders.json"; document.body.append(a); a.click(); a.remove();
-  say(TR ? "Pencere açılamadı, amazon-orders.json indirildi. Things I own sayfasında Import ile açın." : "Couldn't open the page, so amazon-orders.json was downloaded. Open it with Import on Things I own.", true);
+  const json = JSON.stringify(payload);
+  let href = "";
+  try {
+    const z = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
+    let bin = ""; const u8 = new Uint8Array(z);
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    const b64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    if (b64.length < 1500000) href = TARGET + "#amz=" + b64;
+  } catch (e) {}
+  const file = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  say(`${items.length} ${TR ? "ürün bulundu." : "items found."}`, true, [
+    href && [TR ? "Things I own'da aç" : "Open in Things I own", href, "_blank"],
+    [TR ? "Dosya olarak indir" : "Download as file", file, "", "amazon-orders.json"],
+  ]);
 
   function orderCards(doc) {
     const sel = [".order-card", ".js-order-card", "#ordersContainer > .order", ".your-orders-content-container .order"];
@@ -148,8 +148,17 @@
     const box = document.createElement("div");
     box.style.cssText = "position:fixed;z-index:2147483647;left:50%;top:16px;transform:translateX(-50%);background:#16202b;color:#fff;font:15px/1.4 system-ui,sans-serif;padding:12px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35);max-width:calc(100% - 32px)";
     document.body.append(box);
-    const f = (msg, end) => {
+    const f = (msg, end, links) => {
       box.textContent = "Things I own · " + msg;
+      for (const l of links || []) {
+        if (!l) continue;
+        const a = document.createElement("a");
+        a.textContent = l[0]; a.href = l[1];
+        if (l[2]) { a.target = l[2]; a.rel = "noopener"; }
+        if (l[3]) a.download = l[3];
+        a.style.cssText = "margin-left:12px;color:#16202b;background:#ffb74d;font-weight:700;padding:3px 10px;border-radius:6px;text-decoration:none;display:inline-block";
+        box.append(a);
+      }
       if (end) { const b = document.createElement("button"); b.textContent = "OK"; b.style.cssText = "margin-left:12px;font:inherit;padding:2px 10px;border-radius:6px;border:0;cursor:pointer"; b.onclick = () => box.remove(); box.append(b); }
     };
     f.close = () => box.remove();
