@@ -1,89 +1,26 @@
 // Runs on an Amazon "Your Orders" page (amazon.com.tr, amazon.com, ...) as a bookmarklet.
-// It reads every order for the years you pick, then sends names, photo links, dates and order numbers
-// to dwine1.xyz/projects/things-i-own, which shows them for review before anything is added.
+// Each tap reads the orders on the page you're looking at and adds them to a list kept in this browser,
+// so you can go page by page. The list then goes to dwine1.xyz/projects/things-i-own for review.
 // The list travels in the link's #fragment, which browsers never send to any server.
 // Nothing is sent anywhere else. The Things I own page builds the bookmark link from this file.
 (async () => {
   const TARGET = "https://dwine1.xyz/projects/things-i-own/index.html";
+  const KEY = "dwine1-amazon-collected";
   if (!/(^|\.)amazon\.[a-z.]+$/.test(location.hostname)) { alert("Open your Amazon orders page first (Hesabım → Siparişlerim), then tap this bookmark again."); return; }
   const TR = location.hostname.endsWith(".tr");
   const say = makeBox();
 
-  // Every year Amazon offers in its menu (or back to 2010), every page of each year.
-  const now = new Date().getFullYear();
-  const offered = [...document.querySelectorAll('option[value^="year-"], a[href*="timeFilter=year-"]')]
-    .map(e => +((e.value || e.getAttribute("href") || "").match(/year-(\d{4})/) || [])[1]).filter(Boolean);
-  const years = [...new Set([...offered, ...Array.from({ length: now - 2009 }, (_, i) => now - i)])].sort((a, b) => b - a);
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) {}
+  if (!Array.isArray(saved)) saved = [];
+  const items = [], seen = new Set(saved.map(i => i.orderId + ":" + i.asin));
+  const cards = orderCards(document);
+  cards.forEach(readOrder);
+  const all = saved.concat(items);
+  try { localStorage.setItem(KEY, JSON.stringify(all)); } catch (e) {}
 
-  // A small window on Amazon that can walk through the order pages like you would. Opened right away,
-  // while the tap still counts, so the popup blocker lets it through; only used if reading pages directly fails.
-  let pop = null;
-  try { pop = window.open("about:blank", "dwine1-amazon-pages", "width=480,height=640,left=40,top=40"); } catch (e) {}
-  const items = [], seen = new Set(), log = [];
-  const here = orderCards(document);
-  here.forEach(readOrder);
-  log.push(`here:${here.length}/${items.length}`);
-  const path = /order-history|your-orders/.test(location.pathname) ? location.pathname : "/gp/css/order-history";
-  let fetchWorks = false, popWorks = null;
-  for (const y of years) {
-    let yearCards = 0;
-    for (let start = 0; start < 1000; start += 10) {
-      say(`${TR ? "Okunuyor" : "Reading"} ${y}… ${items.length} ${TR ? "ürün" : "items"}`);
-      const u = new URL(path, location.origin);
-      u.searchParams.set("timeFilter", "year-" + y);
-      u.searchParams.set("startIndex", String(start));
-      let doc = null, cards = [];
-      try {
-        const r = await fetch(u, { credentials: "include" });
-        doc = new DOMParser().parseFromString(await r.text(), "text/html");
-        cards = orderCards(doc);
-      } catch (e) {}
-      if (start === 0 && log.length < 4) log.push(`f${y}:${doc ? (doc.title || "").slice(0, 25) + "/" + doc.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length : "x"}`);
-      if (cards.length) { if (!fetchWorks) { try { pop && pop.close(); } catch (e) {} } fetchWorks = true; }
-      // Nothing in the raw page: open it in the small window, let it run its own scripts, and read that.
-      else if (!fetchWorks && popWorks !== false) {
-        doc = await viaWindow(u);
-        cards = doc ? orderCards(doc) : [];
-        if (popWorks === null) popWorks = !!doc;
-      }
-      yearCards += cards.length;
-      if (start === 0) log.push(`${y}:${cards.length}`);
-      cards.forEach(readOrder);
-      const next = doc && doc.querySelector(".a-pagination .a-last:not(.a-disabled) a");
-      if (!next && cards.length < 10) break;
-      if (!cards.length) break;
-      await new Promise(r => setTimeout(r, 300));
-    }
-    // Years before the oldest one with orders are empty; stop after three empty years in a row below it.
-    if (!yearCards && y < now - 2 && !offered.includes(y) && log.slice(-3).every(l => /:0$/.test(l))) break;
-  }
-  try { pop && pop.close(); } catch (e) {}
-  log.push(pop ? `w:${popWorks}` : "w:blocked");
-
-  async function viaWindow(u) {
-    if (!pop || pop.closed) return null;
-    let old = null, settled = 0;
-    try { old = pop.document; pop.location.href = u.href; } catch (e) { return null; }
-    // Wait for the new page, then until orders show up on it (or it has sat loaded for ~2.5 s).
-    for (let t = 0; t < 70; t++) {
-      await new Promise(r => setTimeout(r, 300));
-      let d;
-      try { d = pop.document; } catch (e) { continue; }
-      if (!d || d === old || d.readyState === "loading") continue;
-      if (orderCards(d).length) return d;
-      if (d.readyState === "complete" && ++settled > 8) return d;
-    }
-    return null;
-  }
-
-  if (!items.length) {
-    say((TR ? "Sipariş bulunamadı. Bu mesajın ekran görüntüsünü Claude'a gönderin. " : "No orders found. Send Claude a screenshot of this message. ") +
-      `[${location.pathname} · ${document.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length} · ${log.join(" | ")}]`, true);
-    return;
-  }
   // Amazon cuts the link between its tabs and other sites, so hand the list over in a link the user taps.
-  const payload = { app: "dwine1-amazon-import", version: 1, site: location.hostname, items };
-  const json = JSON.stringify(payload);
+  const json = JSON.stringify({ app: "dwine1-amazon-import", version: 1, site: location.hostname, items: all });
   let href = "";
   try {
     const z = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
@@ -93,9 +30,17 @@
     if (b64.length < 1500000) href = TARGET + "#amz=" + b64;
   } catch (e) {}
   const file = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-  say(`${items.length} ${TR ? "ürün bulundu" : "items found"} (${log.filter(l => /^\d{4}:[1-9]/.test(l)).map(l => l.split(":")[0]).join(", ")}). [${log.slice(0, 12).join(" ")}]`, true, [
-    href && [TR ? "Things I own'da aç" : "Open in Things I own", href, "_blank"],
-    [TR ? "Dosya olarak indir" : "Download as file", file, "", "amazon-orders.json"],
+  const page = TR
+    ? `Bu sayfa: ${cards.length} sipariş, ${items.length} yeni ürün. Toplanan: ${all.length} ürün. Sonraki sayfaya geçip tekrar basın, bitince:`
+    : `This page: ${cards.length} orders, ${items.length} new items. Collected: ${all.length} items. Go to the next page and tap again; when done:`;
+  say(page + (cards.length ? "" : ` [${document.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"]').length}]`), true, [
+    all.length && href && [TR ? "Things I own'da aç" : "Open in Things I own", href, "_blank"],
+    all.length && [TR ? "Dosya olarak indir" : "Download as file", file, "", "amazon-orders.json"],
+    all.length && [TR ? "Baştan başla" : "Start over", () => {
+      if (!confirm(TR ? "Toplanan liste silinsin mi? (Things I own'a eklenenler kalır.)" : "Clear the collected list? (Things already added to Things I own stay.)")) return;
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      say(TR ? "Liste temizlendi." : "List cleared.", true);
+    }],
   ]);
 
   function orderCards(doc) {
@@ -172,14 +117,18 @@
     return null;
   }
   function makeBox() {
+    const prev = document.getElementById("dwine1-amz-box");
+    if (prev) prev.remove();
     const box = document.createElement("div");
+    box.id = "dwine1-amz-box";
     box.style.cssText = "position:fixed;z-index:2147483647;left:50%;top:16px;transform:translateX(-50%);background:#16202b;color:#fff;font:15px/1.4 system-ui,sans-serif;padding:12px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35);max-width:calc(100% - 32px)";
     document.body.append(box);
     const f = (msg, end, links) => {
       box.textContent = "Things I own · " + msg;
       for (const l of links || []) {
         if (!l) continue;
-        const a = document.createElement("a");
+        const a = document.createElement(typeof l[1] === "function" ? "button" : "a");
+        if (typeof l[1] === "function") { a.textContent = l[0]; a.onclick = l[1]; a.style.cssText = "margin-left:12px;font:inherit;padding:2px 10px;border-radius:6px;border:0;cursor:pointer"; box.append(a); continue; }
         a.textContent = l[0]; a.href = l[1];
         if (l[2]) { a.target = l[2]; a.rel = "noopener"; }
         if (l[3]) a.download = l[3];
