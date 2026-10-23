@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>Files · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  :root {
+    --bg: #eef1f4; --fg: #16202b; --muted: #5b6876; --line: #d3dae2; --accent: #2b4fd8;
+    --card: #ffffff; --danger: #b42318; --warn: #8a5a00; --ok: #1f7a45;
+    --xls: #1d7044; --pdf: #c4302b; --doc: #2b5cb8; --img: #8a4fc4; --other: #5b6876;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; --card: #161d25; --danger: #ff8a7a; --warn: #f2c063; --ok: #6fd39a;
+      --xls: #3fae72; --pdf: #f0685f; --doc: #6d97ee; --img: #b88ae6; --other: #93a0ae; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #0f141a; --fg: #e6ebf1; --muted: #93a0ae; --line: #27313c; --accent: #8ea6ff; --card: #161d25; --danger: #ff8a7a; --warn: #f2c063; --ok: #6fd39a;
+    --xls: #3fae72; --pdf: #f0685f; --doc: #6d97ee; --img: #b88ae6; --other: #93a0ae; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 50rem; margin: 0 auto; padding-block: 2rem 5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 2rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+  .lede { margin: .5rem 0 0; color: var(--muted); max-width: 38rem; }
+  main { display: grid; gap: 1.25rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+  button, .btn { font: inherit; font-size: .9rem; cursor: pointer; border-radius: 8px; padding: .45rem .85rem; border: 1px solid var(--line); background: var(--card); color: var(--fg); text-decoration: none; display: inline-flex; align-items: center; gap: .35rem; }
+  button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  button.danger { color: var(--danger); }
+  button:hover, .btn:hover { filter: brightness(.96); }
+  button:disabled { opacity: .6; cursor: default; }
+  input, select { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .45rem .7rem; }
+
+  .note { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: .8rem 1rem; display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; font-size: .95rem; }
+  .note p { margin: 0; flex: 1 1 18rem; }
+  .note.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+  .note strong { font-weight: 700; }
+  details.setup { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: .8rem 1rem; }
+  details.setup summary { cursor: pointer; font-weight: 700; }
+  details.setup ol { padding-left: 1.25rem; margin: .6rem 0; }
+  details.setup li { margin: .25rem 0; }
+  details.setup pre { max-height: 14rem; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .6rem .7rem; font: .75rem/1.45 var(--mono); white-space: pre; margin: .4rem 0; }
+
+  .drop { border: 2px dashed var(--line); border-radius: 14px; padding: 1.6rem 1rem; text-align: center; display: grid; gap: .5rem; justify-items: center; background: color-mix(in srgb, var(--card) 60%, transparent); transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+  .drop .big { font-family: var(--display); font-weight: 800; font-size: 1.25rem; }
+  .drop .small { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  .drop input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  .tools { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .tools input[type=search] { flex: 1 1 12rem; min-width: 0; }
+  .chips { display: flex; gap: .35rem; flex-wrap: wrap; }
+  .chip { font-size: .8rem; padding: .25rem .65rem; border-radius: 999px; }
+  .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+
+  ul.files { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+  li.file { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .7rem .8rem; display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; }
+  .badge { width: 2.6rem; height: 3rem; border-radius: 6px; display: grid; place-items: end center; padding-bottom: .35rem; font: 700 .62rem/1 var(--mono); color: #fff; text-transform: uppercase; letter-spacing: .02em; position: relative; overflow: hidden; background: var(--other); }
+  .badge::before { content: ""; position: absolute; top: 0; right: 0; width: .8rem; height: .8rem; background: linear-gradient(225deg, var(--bg) 50%, rgba(255,255,255,.35) 50%); }
+  .badge.xls { background: var(--xls); } .badge.pdf { background: var(--pdf); } .badge.doc { background: var(--doc); } .badge.img { background: var(--img); }
+  :root[data-theme="dark"] .badge, .badge { color: #fff; }
+  .info { min-width: 0; }
+  .name { font-weight: 700; overflow-wrap: anywhere; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; font-size: 1rem; color: var(--fg); display: block; }
+  .name:hover { text-decoration: underline; }
+  .meta { font-family: var(--mono); font-size: .72rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .1rem .6rem; }
+  .st-ok { color: var(--ok); } .st-wait { color: var(--warn); } .st-bad { color: var(--danger); }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: .3rem; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .acts { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end; }
+  .acts button { padding: .35rem .6rem; font-size: .82rem; }
+  @media (max-width: 560px) {
+    li.file { grid-template-columns: auto 1fr; }
+    .acts { grid-column: 1 / -1; justify-content: flex-start; }
+  }
+  .empty { color: var(--muted); text-align: center; padding: 2rem 1rem; border: 1px dashed var(--line); border-radius: 12px; }
+
+  dialog.viewer { width: min(64rem, 100vw - 24px); height: min(52rem, 100dvh - 24px); max-width: none; max-height: none; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); overflow: hidden; }
+  dialog.viewer[open] { display: grid; grid-template-rows: auto 1fr; }
+  dialog::backdrop { background: rgba(10,15,20,.55); }
+  .vhead { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .vhead h2 { margin: 0; font-size: 1rem; flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+  .vbody { min-height: 0; overflow: auto; position: relative; background: var(--bg); }
+  .vbody iframe { border: 0; width: 100%; height: 100%; display: block; background: #fff; }
+  .vbody img, .vbody video { max-width: 100%; max-height: 100%; display: block; margin: auto; }
+  .vbody audio { display: block; margin: 2rem auto; }
+  .vbody pre { margin: 0; padding: 1rem; font: .8rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .vmsg { padding: 2rem 1rem; text-align: center; color: var(--muted); display: grid; gap: .8rem; justify-items: center; }
+  .tabs { display: flex; gap: .3rem; padding: .4rem .6rem; border-bottom: 1px solid var(--line); overflow-x: auto; background: var(--card); position: sticky; top: 0; }
+  .tabs button { font-size: .78rem; padding: .2rem .6rem; white-space: nowrap; }
+  .tabs button[aria-pressed="true"] { background: var(--xls); border-color: var(--xls); color: #fff; }
+  .sheetwrap { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+  @media (max-width: 560px) {
+    dialog.viewer { width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
+  }
+  dialog.small { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); width: min(26rem, calc(100vw - 32px)); padding: 1.1rem; }
+  dialog.small h2 { margin: 0 0 .6rem; font-size: 1.1rem; }
+  dialog.small input { width: 100%; }
+  dialog.small .row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .9rem; }
+
+  .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .6rem .8rem .6rem 1rem; border-radius: 10px; display: flex; gap: .75rem; align-items: center; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+  .toast button { background: transparent; color: var(--bg); border-color: var(--bg); padding: .25rem .6rem; }
+</style>
+<script src="../../sync.js?v=3" data-keys="dwine1-files-v1"></script>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="../../index.html">← All projects</a>
+    <header>
+      <h1>Files</h1>
+      <p class="lede">Keep your Excel sheets, PDFs, Word documents and any other file here. Sign in with your PIN and the same files are on every device. Each file is locked in this browser before it is uploaded, so only your PIN can open it.</p>
+    </header>
+    <main>
+      <div class="note warn" id="signin-note" hidden>
+        <p><strong>Not signed in.</strong> Files you add stay in this browser only. Sign in with your PIN to upload them and see them on your other devices.</p>
+        <button class="primary" type="button" data-sync-button>Sign in to sync</button>
+      </div>
+      <div class="note warn" id="setup-note" hidden>
+        <p><strong>Online storage isn't switched on yet.</strong> Files are kept in this browser until it is. It takes one paste in Supabase; the steps are below.</p>
+      </div>
+      <details class="setup" id="setup" hidden>
+        <summary>How to switch on online storage (once)</summary>
+        <ol>
+          <li>Open <a href="https://supabase.com/dashboard/project/mxzymqxbaoopwtwheyur/sql/new" target="_blank" rel="noopener">Supabase › SQL Editor › New query</a> for your dwine1 project.</li>
+          <li>Press <strong>Copy setup</strong> below, paste it into the editor and press <strong>Run</strong>. You should see “Success. No rows returned”.</li>
+          <li>Come back here and press <strong>Check again</strong>. Files waiting in this browser start uploading.</li>
+        </ol>
+        <pre id="sql">Loading…</pre>
+        <div class="tools"><button type="button" id="copy-sql">Copy setup</button><button type="button" class="primary" id="recheck">Check again</button></div>
+      </details>
+
+      <label class="drop" id="drop">
+        <span class="big">Drop files here</span>
+        <span class="btn primary" role="button">Choose files</span>
+        <span class="small">Any kind of file, up to 25 MB each · Excel, PDF and Word open right here</span>
+        <input type="file" id="pick" multiple>
+      </label>
+
+      <div class="tools">
+        <input type="search" id="q" placeholder="Search file names" aria-label="Search file names">
+        <select id="sort" aria-label="Sort">
+          <option value="new">Newest first</option>
+          <option value="old">Oldest first</option>
+          <option value="name">Name A–Z</option>
+          <option value="big">Largest first</option>
+        </select>
+      </div>
+      <div class="chips" id="chips" role="group" aria-label="Show"></div>
+      <div class="count"><span id="count"></span><span id="usage"></span></div>
+      <ul class="files" id="list"></ul>
+      <p class="empty" id="empty" hidden></p>
+    </main>
+  </div>
+
+  <dialog class="viewer" id="viewer" aria-labelledby="v-title">
+    <div class="vhead">
+      <h2 id="v-title"></h2>
+      <a class="btn" id="v-tab" target="_blank" rel="noopener" hidden>Open in new tab</a>
+      <button type="button" id="v-dl">Download</button>
+      <button type="button" id="v-close">Close</button>
+    </div>
+    <div class="vbody" id="v-body"></div>
+  </dialog>
+
+  <dialog class="small" id="rename">
+    <form method="dialog" id="rename-form">
+      <h2>Rename file</h2>
+      <input id="rename-input" maxlength="200" aria-label="File name" autocomplete="off">
+      <div class="row"><button type="button" id="rename-cancel">Cancel</button><button class="primary" type="submit">Save</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
+
+<script>
+(() => {
+  // The file list (names, sizes, dates, and each file's own random key) lives in localStorage and is synced by
+  // sync.js, which encrypts it with your PIN. The files themselves are cut into half MB pieces, each encrypted with
+  // that file's key (AES-GCM), and stored in Supabase through the dwine1_file_* functions (see supabase-setup.sql).
+  // The server never sees a name or a key, only a random file id and scrambled pieces. A copy of each file is also
+  // kept in IndexedDB so files open quickly and files added while signed out wait there until they can upload.
+  const KEY = "dwine1-files-v1";
+  const SB = "https://mxzymqxbaoopwtwheyur.supabase.co";
+  const SB_KEY = "sb_publishable_S2tMEu7IVn-t9fqszeK76w_Gop4imSm"; // public key; never put a secret key here
+  const MAX = 25 * 1024 * 1024, PART = 512 * 1024, DB_LIMIT = 500 * 1024 * 1024;
+  const CDN = "https://cdn.jsdelivr.net/npm/";
+  const $ = id => document.getElementById(id);
+
+  let files = load();
+  let filter = "all", setupNeeded = false, dbSize = null;
+  const progress = {};   // id -> 0..1 while uploading or downloading
+  const failed = {};     // id -> message of the last upload error
+
+  // --- list ------------------------------------------------------------------
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(d) ? d.filter(f => f && f.id) : [];
+    } catch { return []; }
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(files)); }
+    catch { toast("Couldn't save the file list in this browser."); }
+  }
+  function change(id, fields) {
+    files = load();
+    const f = files.find(x => x.id === id);
+    if (!f) return null;
+    Object.assign(f, fields, { updated: Date.now() });
+    persist();
+    return f;
+  }
+  const live = () => files.filter(f => !f.deleted);
+  const signedIn = () => !!(window.DwineSync && DwineSync.signedIn());
+
+  // --- device copy (IndexedDB) -----------------------------------------------
+  const dbp = new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open("dwine1-files", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  });
+  dbp.catch(() => {});
+  function idb(mode, fn) {
+    return dbp.then(db => new Promise((res, rej) => {
+      const t = db.transaction("blobs", mode), r = fn(t.objectStore("blobs"));
+      t.oncomplete = () => res(r && "result" in r ? r.result : undefined);
+      t.onerror = t.onabort = () => rej(t.error);
+    }));
+  }
+  const putLocal = (id, blob) => idb("readwrite", s => s.put(blob, id)).catch(() => {});
+  const getLocal = id => idb("readonly", s => s.get(id)).catch(() => undefined);
+  const delLocal = id => idb("readwrite", s => s.delete(id)).catch(() => {});
+  const localIds = () => idb("readonly", s => s.getAllKeys()).then(k => new Set(k)).catch(() => new Set());
+  let onDevice = new Set();
+  localIds().then(s => { onDevice = s; render(); });
+
+  // --- crypto and the server -------------------------------------------------
+  const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+  const b64 = b => { let s = ""; const u = new Uint8Array(b); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const fileKey = raw => crypto.subtle.importKey("raw", unb64(raw), "AES-GCM", false, ["encrypt", "decrypt"]);
+
+  async function rpc(fn, body) {
+    const r = await fetch(`${SB}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (r.status === 404) { setupNeeded = true; showNotes(); throw new Error("online storage isn't switched on yet"); }
+    if (!r.ok) throw new Error(`${fn} ${r.status}`);
+    setupNeeded = false;
+    const t = await r.text();
+    return t ? JSON.parse(t) : null;
+  }
+  async function checkSetup() {
+    try { dbSize = await rpc("dwine1_db_size"); } catch {}
+    showNotes(); render();
+  }
+
+  async function upload(f) {
+    const blob = await getLocal(f.id);
+    if (!blob) return;
+    const key = await fileKey(f.fkey);
+    const parts = Math.max(1, Math.ceil(blob.size / PART));
+    progress[f.id] = 0; render();
+    for (let n = 0; n < parts; n++) {
+      const plain = await blob.slice(n * PART, (n + 1) * PART).arrayBuffer();
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
+      await rpc("dwine1_file_put", { p_id: f.fid, p_n: n, p_data: b64(iv) + "." + b64(ct) });
+      progress[f.id] = (n + 1) / parts; render();
+    }
+    delete progress[f.id];
+    change(f.id, { cloud: true, parts });
+  }
+
+  async function download(f) {
+    const local = await getLocal(f.id);
+    if (local) return local;
+    if (!f.cloud) throw new Error(f.deleted ? "removed" : "not uploaded yet");
+    const key = await fileKey(f.fkey), chunks = [];
+    progress[f.id] = 0; render();
+    try {
+      for (let n = 0; n < f.parts; n++) {
+        const s = await rpc("dwine1_file_get", { p_id: f.fid, p_n: n });
+        if (!s) throw new Error("a piece is missing online");
+        const [iv, ct] = s.split(".");
+        chunks.push(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, key, unb64(ct)));
+        progress[f.id] = (n + 1) / f.parts; render();
+      }
+    } finally { delete progress[f.id]; render(); }
+    const blob = new Blob(chunks, { type: f.type || "application/octet-stream" });
+    await putLocal(f.id, blob); onDevice.add(f.id);
+    return blob;
+  }
+
+  // Upload files waiting in this browser and delete removed ones online, one at a time.
+  let working = false;
+  async function work() {
+    if (working) return;
+    // Removed files leave this device once the Undo moment has passed, even when signed out.
+    for (const f of load().filter(x => x.deleted && onDevice.has(x.id) && Date.now() - x.deleted > 8000)) { delLocal(f.id); onDevice.delete(f.id); }
+    if (!signedIn() || !navigator.onLine) return;
+    working = true;
+    try {
+      files = load();
+      for (const f of files.filter(x => x.deleted && x.fid && Date.now() - x.deleted > 8000)) {
+        await rpc("dwine1_file_delete", { p_id: f.fid });
+        files = load();
+        const t = files.find(x => x.id === f.id);
+        if (t && t.deleted) { delete t.fid; delete t.fkey; t.updated = Date.now(); persist(); }
+        delLocal(f.id); onDevice.delete(f.id);
+      }
+      for (const f of load().filter(x => !x.deleted && !x.cloud && onDevice.has(x.id))) {
+        try { await upload(f); delete failed[f.id]; }
+        catch (e) { delete progress[f.id]; failed[f.id] = e.message || String(e); if (setupNeeded) break; }
+      }
+      if (dbSize == null || Math.random() < .2) dbSize = await rpc("dwine1_db_size").catch(() => dbSize);
+    } catch (e) { /* tried again shortly */ }
+    working = false;
+    render();
+  }
+  setInterval(() => { showNotes(); work(); }, 4000);
+  window.addEventListener("online", work);
+
+  // --- adding, renaming, removing ---------------------------------------------
+  async function add(list) {
+    const big = [];
+    for (const file of list) {
+      if (file.size > MAX) { big.push(file.name); continue; }
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const now = Date.now();
+      const rec = {
+        id, name: file.name || "Untitled", type: file.type || guessType(file.name), size: file.size,
+        modified: file.lastModified || null, created: now, updated: now,
+        fid: hex(crypto.getRandomValues(new Uint8Array(32))),
+        fkey: b64(crypto.getRandomValues(new Uint8Array(32))),
+        parts: Math.max(1, Math.ceil(file.size / PART)), cloud: false,
+      };
+      try { await putLocal(id, file); onDevice.add(id); }
+      catch { toast("This browser won't keep files (private mode?)."); continue; }
+      files = load(); files.push(rec); persist();
+    }
+    render();
+    if (big.length) toast(`${big.length === 1 ? big[0] + " is" : big.length + " files are"} over 25 MB and ${big.length === 1 ? "was" : "were"} not added.`);
+    work();
+  }
+
+  let lastRemoved = null;
+  function remove(f) {
+    change(f.id, { deleted: Date.now() });
+    lastRemoved = f.id;
+    toast(`Removed ${f.name}`, () => {
+      const r = change(lastRemoved, {});
+      if (r && r.fid) { delete r.deleted; persist(); }
+      else toast("Too late to undo, it was already deleted online.");
+      render();
+    });
+    render();
+  }
+
+  function rename(f) {
+    const dlg = $("rename"), input = $("rename-input");
+    input.value = f.name;
+    dlg.showModal();
+    const dot = f.name.lastIndexOf(".");
+    input.setSelectionRange(0, dot > 0 ? dot : f.name.length);
+    $("rename-form").onsubmit = () => {
+      const v = input.value.trim();
+      if (v && v !== f.name) { change(f.id, { name: v }); render(); }
+    };
+  }
+  $("rename-cancel").addEventListener("click", () => $("rename").close());
+
+  async function save(f) {
+    try {
+      const blob = await download(f);
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), { href: url, download: f.name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { toast("Couldn't get the file: " + (e.message || e)); }
+  }
+
+  // --- kinds of files ---------------------------------------------------------
+  const ext = n => { const m = /\.([a-z0-9]{1,8})$/i.exec(n || ""); return m ? m[1].toLowerCase() : ""; };
+  const SHEET = ["xlsx", "xlsm", "xlsb", "xls", "ods", "csv", "tsv", "numbers"];
+  const WORD = ["docx", "doc", "odt", "rtf", "pages", "dotx"];
+  const IMG = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "svg", "bmp", "avif"];
+  function kind(f) {
+    const e = ext(f.name), t = f.type || "";
+    if (SHEET.includes(e) || /spreadsheet|ms-excel/.test(t)) return "xls";
+    if (e === "pdf" || t === "application/pdf") return "pdf";
+    if (WORD.includes(e) || /wordprocessing|msword/.test(t)) return "doc";
+    if (IMG.includes(e) || t.startsWith("image/")) return "img";
+    return "other";
+  }
+  function guessType(name) {
+    return ({ xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xls: "application/vnd.ms-excel", csv: "text/csv",
+      pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", doc: "application/msword",
+      txt: "text/plain", heic: "image/heic" })[ext(name)] || "";
+  }
+  const KINDS = [["all", "All"], ["xls", "Excel"], ["pdf", "PDF"], ["doc", "Word"], ["img", "Images"], ["other", "Other"]];
+
+  function size(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB";
+    if (n < 1024 ** 3) return (n / 1024 / 1024).toFixed(1) + " MB";
+    return (n / 1024 ** 3).toFixed(2) + " GB";
+  }
+  const when = t => new Date(t).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  // --- drawing ----------------------------------------------------------------
+  function el(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    Object.assign(e, props || {});
+    kids.forEach(k => k != null && e.append(k));
+    return e;
+  }
+  function status(f) {
+    if (progress[f.id] != null) return [f.cloud ? "Downloading…" : "Uploading…", "st-wait"];
+    if (f.cloud) return [onDevice.has(f.id) ? "Synced" : "Online", "st-ok"];
+    if (onDevice.has(f.id)) {
+      if (failed[f.id] && !setupNeeded) return ["Upload failed, retrying", "st-bad"];
+      return [signedIn() && !setupNeeded ? "Waiting to upload" : "On this device only", "st-wait"];
+    }
+    return ["Waiting for the device that added it", "st-wait"];
+  }
+
+  function render() {
+    const q = $("q").value.trim().toLowerCase();
+    const all = live();
+    let shown = all.filter(f => (filter === "all" || kind(f) === filter) && (!q || f.name.toLowerCase().includes(q)));
+    const s = $("sort").value;
+    shown.sort(s === "old" ? (a, b) => a.created - b.created
+      : s === "name" ? (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
+      : s === "big" ? (a, b) => b.size - a.size
+      : (a, b) => b.created - a.created);
+
+    const chips = $("chips");
+    chips.replaceChildren(...KINDS.map(([k, label]) => {
+      const n = k === "all" ? all.length : all.filter(f => kind(f) === k).length;
+      if (k !== "all" && !n && filter !== k) return null;
+      const b = el("button", { type: "button", className: "chip", textContent: `${label} ${n}` });
+      b.setAttribute("aria-pressed", String(filter === k));
+      b.addEventListener("click", () => { filter = k; render(); });
+      return b;
+    }).filter(Boolean));
+
+    const total = all.reduce((t, f) => t + (f.size || 0), 0);
+    $("count").textContent = `${all.length} ${all.length === 1 ? "file" : "files"} · ${size(total)}`;
+    $("usage").textContent = dbSize != null && !setupNeeded ? `Online space used: ${size(dbSize)} of 500 MB` : "";
+    $("usage").className = dbSize > DB_LIMIT * .85 ? "st-bad" : "";
+
+    const ul = $("list");
+    ul.replaceChildren(...shown.map(f => {
+      const k = kind(f), [st, cls] = status(f), p = progress[f.id];
+      const name = el("button", { type: "button", className: "name", textContent: f.name, title: "Open" });
+      name.addEventListener("click", () => view(f.id));
+      const meta = el("div", { className: "meta" },
+        el("span", { textContent: size(f.size) }),
+        el("span", { textContent: "Added " + when(f.created) }),
+        el("span", { className: cls, textContent: st, title: failed[f.id] || "" }));
+      const info = el("div", { className: "info" }, name, meta);
+      if (p != null) { const i = el("i"); i.style.width = Math.round(p * 100) + "%"; info.append(el("div", { className: "bar" }, i)); }
+      const btn = (label, fn, cls2) => { const b = el("button", { type: "button", textContent: label, className: cls2 || "" }); b.addEventListener("click", () => fn(f)); return b; };
+      return el("li", { className: "file" },
+        el("div", { className: "badge " + k, textContent: (ext(f.name) || "file").slice(0, 4), ariaHidden: "true" }),
+        info,
+        el("div", { className: "acts" }, btn("Open", x => view(x.id)), btn("Download", save), btn("Rename", rename), btn("Remove", remove, "danger")));
+    }));
+    const empty = $("empty");
+    empty.hidden = shown.length > 0;
+    empty.textContent = all.length ? "No files match." : "No files yet. Drop some above or press Choose files.";
+    showNotes();
+  }
+
+  function showNotes() {
+    const inOk = signedIn();
+    $("signin-note").hidden = inOk;
+    $("setup-note").hidden = !(inOk && setupNeeded);
+    const setup = $("setup"), was = setup.hidden;
+    setup.hidden = !(inOk && setupNeeded);
+    if (was && !setup.hidden) setup.open = true;
+  }
+
+  // --- viewer -----------------------------------------------------------------
+  let viewUrl = null, viewing = null;
+  const libs = {};
+  function loadScript(src) {
+    return libs[src] || (libs[src] = new Promise((res, rej) => {
+      const t = el("script", { src });
+      t.onload = res;
+      t.onerror = () => { delete libs[src]; t.remove(); rej(new Error("couldn't load the viewer")); };
+      document.head.appendChild(t);
+    }));
+  }
+  // Word and Excel previews go into a sandboxed frame, so nothing inside a document can run.
+  function frameHtml(inner, css) {
+    return `<!doctype html><meta charset="utf-8"><style>
+      body{margin:0;padding:1.25rem;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#16202b;background:#fff}
+      img{max-width:100%;height:auto} table{border-collapse:collapse} td,th{border:1px solid #d3dae2;padding:.25rem .45rem;vertical-align:top}
+      ${css || ""}</style>${inner}`;
+  }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  async function view(id) {
+    const f = live().find(x => x.id === id);
+    if (!f) return;
+    viewing = f;
+    const body = $("v-body"), dlg = $("viewer");
+    $("v-title").textContent = f.name;
+    $("v-tab").hidden = true;
+    body.replaceChildren(el("div", { className: "vmsg", textContent: "Opening…" }));
+    if (!dlg.open) dlg.showModal();
+    let blob;
+    try { blob = await download(f); }
+    catch (e) { if (viewing === f) body.replaceChildren(el("div", { className: "vmsg", textContent: "Couldn't open it: " + (e.message || e) })); return; }
+    if (viewing !== f) return;
+    if (viewUrl) URL.revokeObjectURL(viewUrl);
+    const type = f.type || guessType(f.name) || "application/octet-stream";
+    const typed = blob.type === type ? blob : new Blob([blob], { type });
+    viewUrl = URL.createObjectURL(typed);
+    const e = ext(f.name), k = kind(f);
+    try {
+      if (k === "pdf") {
+        $("v-tab").href = viewUrl; $("v-tab").hidden = false;
+        body.replaceChildren(el("iframe", { src: viewUrl, title: f.name }));
+      } else if (k === "img" && !["heic", "heif"].includes(e)) {
+        body.replaceChildren(el("img", { src: viewUrl, alt: f.name }));
+      } else if (type.startsWith("video/")) {
+        body.replaceChildren(el("video", { src: viewUrl, controls: true }));
+      } else if (type.startsWith("audio/")) {
+        body.replaceChildren(el("audio", { src: viewUrl, controls: true }));
+      } else if (k === "xls" && e !== "numbers") {
+        body.replaceChildren(el("div", { className: "vmsg", textContent: "Reading the sheet…" }));
+        await loadScript(CDN + "xlsx@0.18.5/dist/xlsx.full.min.js");
+        const wb = XLSX.read(await blob.arrayBuffer(), { type: "array", cellDates: true });
+        if (viewing === f) showSheets(wb);
+      } else if (e === "docx" || e === "dotx") {
+        body.replaceChildren(el("div", { className: "vmsg", textContent: "Reading the document…" }));
+        await loadScript(CDN + "mammoth@1.8.0/mammoth.browser.min.js");
+        const r = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
+        if (viewing !== f) return;
+        body.replaceChildren(el("iframe", { sandbox: "", title: f.name,
+          srcdoc: frameHtml(`<div style="max-width:46rem;margin:0 auto">${r.value || "<p><em>This document has no text.</em></p>"}</div>`) }));
+      } else if (/^text\/|json|xml|javascript/.test(type) || ["txt", "md", "json", "xml", "log", "js", "css", "html", "yml", "yaml", "ini"].includes(e)) {
+        const text = await blob.slice(0, 2 * 1024 * 1024).text();
+        body.replaceChildren(el("pre", { textContent: text + (blob.size > 2 * 1024 * 1024 ? "\n\n… (showing the first 2 MB)" : "") }));
+      } else {
+        noPreview(f);
+      }
+    } catch (err) { if (viewing === f) noPreview(f, "Couldn't show a preview (" + (err.message || err) + ")."); }
+  }
+  function noPreview(f, why) {
+    const b = el("button", { type: "button", className: "primary", textContent: "Download " + f.name });
+    b.addEventListener("click", () => save(f));
+    $("v-body").replaceChildren(el("div", { className: "vmsg" },
+      el("p", { textContent: why || "There's no preview for this kind of file here. Download it to open it." }), b));
+  }
+  function showSheets(wb) {
+    const MAXR = 2000, MAXC = 60;
+    const tabs = el("div", { className: "tabs" }), frame = el("iframe", { sandbox: "", title: "Sheet" });
+    const pick = name => {
+      const ws = wb.Sheets[name];
+      let note = "";
+      if (ws && ws["!ref"]) {
+        const r = XLSX.utils.decode_range(ws["!ref"]);
+        if (r.e.r - r.s.r >= MAXR || r.e.c - r.s.c >= MAXC) {
+          note = `<p class="cut">Showing the first ${Math.min(MAXR, r.e.r - r.s.r + 1)} rows and ${Math.min(MAXC, r.e.c - r.s.c + 1)} columns. Download the file to see everything.</p>`;
+          r.e.r = Math.min(r.e.r, r.s.r + MAXR - 1); r.e.c = Math.min(r.e.c, r.s.c + MAXC - 1);
+          ws["!ref"] = XLSX.utils.encode_range(r);
+        }
+      }
+      const html = ws && ws["!ref"] ? XLSX.utils.sheet_to_html(ws, { header: "", footer: "" }) : "<p><em>This sheet is empty.</em></p>";
+      frame.srcdoc = frameHtml(note + html, "body{padding:0} table{font-size:13px} td{white-space:nowrap;max-width:24rem;overflow:hidden;text-overflow:ellipsis} tr:nth-child(odd) td{background:#f6f8fa} .cut{margin:.5rem .75rem;color:#8a5a00;font-size:13px}");
+      tabs.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.name === name)));
+    };
+    wb.SheetNames.forEach(n => {
+      const b = el("button", { type: "button", textContent: n });
+      b.dataset.name = n;
+      b.addEventListener("click", () => pick(n));
+      tabs.append(b);
+    });
+    tabs.hidden = wb.SheetNames.length < 2;
+    $("v-body").replaceChildren(el("div", { className: "sheetwrap" }, tabs, frame));
+    if (wb.SheetNames.length) pick(wb.SheetNames[0]);
+  }
+  $("v-close").addEventListener("click", () => $("viewer").close());
+  $("v-dl").addEventListener("click", () => viewing && save(viewing));
+  $("viewer").addEventListener("close", () => { viewing = null; $("v-body").replaceChildren(); if (viewUrl) { URL.revokeObjectURL(viewUrl); viewUrl = null; } });
+  $("viewer").addEventListener("click", e => { if (e.target === $("viewer")) $("viewer").close(); });
+
+  // --- toast ------------------------------------------------------------------
+  let toastTimer = null;
+  function toast(text, undo) {
+    $("toast-text").textContent = text;
+    const u = $("toast-undo");
+    u.hidden = !undo;
+    u.onclick = () => { $("toast").hidden = true; undo && undo(); };
+    $("toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $("toast").hidden = true; }, undo ? 7000 : 5000);
+  }
+
+  // --- input ------------------------------------------------------------------
+  $("pick").addEventListener("change", e => { add([...e.target.files]); e.target.value = ""; });
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(t => drop.addEventListener(t, () => drop.classList.remove("over")));
+  drop.addEventListener("drop", e => { e.preventDefault(); if (e.dataTransfer.files.length) add([...e.dataTransfer.files]); });
+  // Dropping anywhere on the page works too, instead of the browser opening the file.
+  document.addEventListener("dragover", e => e.preventDefault());
+  document.addEventListener("drop", e => { if (!drop.contains(e.target)) { e.preventDefault(); if (e.dataTransfer.files.length) add([...e.dataTransfer.files]); } });
+  $("q").addEventListener("input", render);
+  $("sort").addEventListener("change", render);
+
+  fetch("supabase-setup.sql").then(r => r.ok ? r.text() : Promise.reject()).then(t => { $("sql").textContent = t; }).catch(() => { $("sql").textContent = "Couldn't load the setup. Open supabase-setup.sql in this folder instead."; });
+  $("copy-sql").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("sql").textContent); toast("Setup copied. Paste it in Supabase and press Run."); }
+    catch { getSelection().selectAllChildren($("sql")); toast("Select all and copy the text above."); }
+  });
+  $("recheck").addEventListener("click", async () => { await checkSetup(); toast(setupNeeded ? "Still not switched on. Did Run finish without errors?" : "Online storage is on."); work(); });
+
+  window.addEventListener("storage", e => { if (e.key === KEY) { files = load(); render(); work(); } });
+
+  render(); showNotes();
+  if (signedIn()) checkSetup().then(work);
+})();
+</script>
+</body>
+</html>
