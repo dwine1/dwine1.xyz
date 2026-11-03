@@ -240,6 +240,8 @@
   <dialog id="exportDlg">
     <h2>Export</h2>
     <form method="dialog" style="display:grid;gap:.6rem">
+      <button type="button" id="exXlsx">Excel <span class="hint">names and coordinates, .xlsx</span></button>
+      <button type="button" id="exPdf">PDF <span class="hint">names and coordinates, to print or share</span></button>
       <button type="button" id="exKml">KML <span class="hint">for Google My Maps or Google Earth</span></button>
       <button type="button" id="exCsv">CSV <span class="hint">for Excel or Google Sheets</span></button>
       <button type="button" id="exJson">Backup <span class="hint">everything, to import here later</span></button>
@@ -1018,6 +1020,85 @@
     download(`saved-places-${stamp()}.csv`, "text/csv;charset=utf-8", "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n"));
   };
   $("exJson").onclick = () => download(`saved-places-backup-${stamp()}.json`, "application/json", JSON.stringify(sorted(), null, 1));
+
+  // Excel and PDF: libraries load only when first used, from exact versions.
+  const CDN = "https://cdn.jsdelivr.net/npm/", libs = {};
+  function loadScript(src) {
+    return libs[src] ||= new Promise((resolve, reject) => {
+      const tag = document.createElement("script");
+      tag.src = src; tag.onload = resolve;
+      tag.onerror = () => { delete libs[src]; tag.remove(); reject(new Error("load failed")); };
+      document.head.appendChild(tag);
+    });
+  }
+  async function busy(b, fn) {
+    const html = b.innerHTML;
+    b.disabled = true; b.textContent = "Preparing…";
+    try { await fn(); }
+    catch { toast("Couldn't make the file. Check your connection and try again."); }
+    finally { b.disabled = false; b.innerHTML = html; }
+  }
+  const tableRows = () => sorted().map((p, i) => ({
+    n: i + 1, name: p.name, lat: hasLoc(p) ? +p.lat.toFixed(6) : "", lng: hasLoc(p) ? +p.lng.toFixed(6) : "",
+    approx: hasLoc(p) && p.approx, address: p.address || "", lists: (p.lists || []).join(", ")
+  }));
+  $("exXlsx").onclick = e => busy(e.currentTarget, async () => {
+    await loadScript(CDN + "xlsx@0.18.5/dist/xlsx.full.min.js");
+    const head = ["#", "Name", "Latitude", "Longitude", "Approximate", "Address", "Lists"];
+    const rows = tableRows().map(r => ({ "#": r.n, "Name": r.name, "Latitude": r.lat, "Longitude": r.lng, "Approximate": r.approx ? "yes" : "", "Address": r.address, "Lists": r.lists }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: head });
+    ws["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 24 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Saved places");
+    XLSX.writeFile(wb, `saved-places-${stamp()}.xlsx`);
+  });
+  let pdfFont;
+  async function loadPdfFont() {
+    // DejaVu covers Turkish and other accented letters that the built-in PDF fonts lack.
+    if (pdfFont === undefined) {
+      try {
+        const res = await fetch(CDN + "dejavu-fonts-ttf@2.37.3/ttf/DejaVuSansCondensed.ttf");
+        if (!res.ok) throw new Error(res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        pdfFont = btoa(bin);
+      } catch { pdfFont = null; }
+    }
+    return pdfFont;
+  }
+  $("exPdf").onclick = e => busy(e.currentTarget, async () => {
+    await loadScript(CDN + "jspdf@2.5.1/dist/jspdf.umd.min.js");
+    await loadScript(CDN + "jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js");
+    const font = await loadPdfFont();
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+    let family = "helvetica";
+    if (font) {
+      doc.addFileToVFS("DejaVuSansCondensed.ttf", font);
+      doc.addFont("DejaVuSansCondensed.ttf", "DejaVu", "normal");
+      doc.addFont("DejaVuSansCondensed.ttf", "DejaVu", "bold");
+      family = "DejaVu";
+    }
+    // Without the font, drop accents so nothing turns into garbage characters.
+    const txt = v => font ? String(v) : String(v).replace(/ı/g, "i").replace(/İ/g, "I").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const rows = tableRows();
+    doc.setFont(family, "normal");
+    doc.setFontSize(16); doc.text("Saved places", 40, 48);
+    doc.setFontSize(9); doc.setTextColor(110);
+    doc.text(`${rows.length} place${rows.length === 1 ? "" : "s"} · ${new Date().toLocaleDateString()}${rows.some(r => r.approx) ? " · ≈ approximate, found by name" : ""}`.replace("≈", font ? "≈" : "~"), 40, 64);
+    const ap = r => r.approx ? (font ? "≈ " : "~ ") : "";
+    doc.autoTable({
+      startY: 78,
+      head: [["#", "Name", "Latitude", "Longitude", "Address"]],
+      body: rows.map(r => [r.n, txt(r.name), r.lat === "" ? "—" : ap(r) + r.lat.toFixed(6), r.lng === "" ? "—" : ap(r) + r.lng.toFixed(6), txt(r.address)]),
+      styles: { font: family, fontSize: 9, cellPadding: 5, overflow: "linebreak" },
+      headStyles: { fillColor: [43, 79, 216], textColor: 255, fontStyle: "normal" },
+      alternateRowStyles: { fillColor: [244, 246, 249] },
+      columnStyles: { 0: { cellWidth: 26, halign: "right" }, 1: { cellWidth: 150 }, 2: { cellWidth: 70, halign: "right" }, 3: { cellWidth: 74, halign: "right" } },
+      margin: { left: 40, right: 40 },
+    });
+    doc.save(`saved-places-${stamp()}.pdf`);
+  });
 
   // ---------- sync from other devices ----------
   window.addEventListener("storage", e => { if (e.key === KEY) { places = load(); render(); if (!didFit) fitAll(); } });
