@@ -119,6 +119,7 @@
   .tag.warn { border-color: var(--approx); color: var(--approx); }
   li.place .coords { grid-column: 3; grid-row: 1; align-self: start; display: grid; justify-items: end; gap: .1rem; padding-left: .6rem; border-left: 1px solid var(--line); font: .75rem/1.35 var(--mono); color: var(--fg); text-align: right; white-space: nowrap; }
   li.place .coords .lbl { color: var(--muted); }
+  li.place .coords div.lbl { margin-top: .15rem; }
   li.place .coords .none { color: var(--muted); }
   li.place .coords button { margin-top: .2rem; }
   li.place .actions { grid-column: 2 / span 2; display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .2rem; }
@@ -726,6 +727,9 @@
       const l = document.createElement("span"); l.className = "lbl"; l.textContent = lbl + " ";
       d.append(l, pre + v); c.append(d);
     }
+    const cl = document.createElement("div"); cl.className = "lbl"; cl.textContent = "coordinate";
+    const cv = document.createElement("div"); cv.textContent = pre + `${lat}; ${lng}`;
+    c.append(cl, cv);
     c.title = p.approx ? "Approximate, found by name" : "Latitude and longitude";
     const b = btn("Copy", async () => {
       const text = `${lat}, ${lng}`;
@@ -1040,14 +1044,15 @@
   }
   const tableRows = () => sorted().map((p, i) => ({
     n: i + 1, name: p.name, lat: hasLoc(p) ? +p.lat.toFixed(6) : "", lng: hasLoc(p) ? +p.lng.toFixed(6) : "",
+    coord: hasLoc(p) ? `${p.lat.toFixed(6)}; ${p.lng.toFixed(6)}` : "",
     approx: hasLoc(p) && p.approx, address: p.address || "", lists: (p.lists || []).join(", ")
   }));
   $("exXlsx").onclick = e => busy(e.currentTarget, async () => {
     await loadScript(CDN + "xlsx@0.18.5/dist/xlsx.full.min.js");
-    const head = ["#", "Name", "Latitude", "Longitude", "Approximate", "Address", "Lists"];
-    const rows = tableRows().map(r => ({ "#": r.n, "Name": r.name, "Latitude": r.lat, "Longitude": r.lng, "Approximate": r.approx ? "yes" : "", "Address": r.address, "Lists": r.lists }));
+    const head = ["#", "Name", "Latitude", "Longitude", "Coordinate", "Approximate", "Address", "Lists"];
+    const rows = tableRows().map(r => ({ "#": r.n, "Name": r.name, "Latitude": r.lat, "Longitude": r.lng, "Coordinate": r.coord, "Approximate": r.approx ? "yes" : "", "Address": r.address, "Lists": r.lists }));
     const ws = XLSX.utils.json_to_sheet(rows, { header: head });
-    ws["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 24 }];
+    ws["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 50 }, { wch: 24 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Saved places");
     XLSX.writeFile(wb, `saved-places-${stamp()}.xlsx`);
@@ -1089,12 +1094,12 @@
     const ap = r => r.approx ? (font ? "≈ " : "~ ") : "";
     doc.autoTable({
       startY: 78,
-      head: [["#", "Name", "Latitude", "Longitude", "Address"]],
-      body: rows.map(r => [r.n, txt(r.name), r.lat === "" ? "—" : ap(r) + r.lat.toFixed(6), r.lng === "" ? "—" : ap(r) + r.lng.toFixed(6), txt(r.address)]),
-      styles: { font: family, fontSize: 9, cellPadding: 5, overflow: "linebreak" },
+      head: [["#", "Name", "Latitude", "Longitude", "Coordinate", "Address"]],
+      body: rows.map(r => [r.n, txt(r.name), r.lat === "" ? "—" : ap(r) + r.lat.toFixed(6), r.lng === "" ? "—" : ap(r) + r.lng.toFixed(6), r.coord ? ap(r) + r.coord : "—", txt(r.address)]),
+      styles: { font: family, fontSize: 8.5, cellPadding: 4.5, overflow: "linebreak" },
       headStyles: { fillColor: [43, 79, 216], textColor: 255, fontStyle: "normal" },
       alternateRowStyles: { fillColor: [244, 246, 249] },
-      columnStyles: { 0: { cellWidth: 26, halign: "right" }, 1: { cellWidth: 150 }, 2: { cellWidth: 70, halign: "right" }, 3: { cellWidth: 74, halign: "right" } },
+      columnStyles: { 0: { cellWidth: 24, halign: "right" }, 1: { cellWidth: 104 }, 2: { cellWidth: 66, halign: "right" }, 3: { cellWidth: 68, halign: "right" }, 4: { cellWidth: 110 } },
       margin: { left: 40, right: 40 },
     });
     doc.save(`saved-places-${stamp()}.pdf`);
