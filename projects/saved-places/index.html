@@ -105,7 +105,7 @@
   .banner span { flex: 1 1 12rem; }
 
   ol.places { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
-  li.place { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .65rem .75rem; display: grid; grid-template-columns: auto 1fr; gap: .2rem .7rem; cursor: pointer; }
+  li.place { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .65rem .75rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .2rem .7rem; cursor: pointer; }
   li.place.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   li.place.dragging { opacity: .4; }
   li.place.dropbefore { box-shadow: 0 -3px 0 var(--accent); }
@@ -117,7 +117,11 @@
   li.place .tags { grid-column: 2; display: flex; gap: .3rem; flex-wrap: wrap; }
   .tag { font-family: var(--mono); font-size: .7rem; border: 1px solid var(--line); border-radius: 999px; padding: 0 .45rem; color: var(--muted); }
   .tag.warn { border-color: var(--approx); color: var(--approx); }
-  li.place .actions { grid-column: 2; display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .2rem; }
+  li.place .coords { grid-column: 3; grid-row: 1; align-self: start; display: grid; justify-items: end; gap: .1rem; padding-left: .6rem; border-left: 1px solid var(--line); font: .75rem/1.35 var(--mono); color: var(--fg); text-align: right; white-space: nowrap; }
+  li.place .coords .lbl { color: var(--muted); }
+  li.place .coords .none { color: var(--muted); }
+  li.place .coords button { margin-top: .2rem; }
+  li.place .actions { grid-column: 2 / span 2; display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .2rem; }
   .handle { cursor: grab; touch-action: none; }
   li.empty { color: var(--muted); text-align: center; padding: 2rem 1rem; border: 1px dashed var(--line); border-radius: 12px; }
   mark { background: var(--mark); color: inherit; border-radius: 3px; }
@@ -702,10 +706,32 @@
         a.append(g, btn("Edit", () => openEdit(p.id), "", `Edit ${p.name}`), btn("Remove", () => remove([p.id]), "danger", `Remove ${p.name}`));
         li.append(a);
       }
+      li.append(coordsCell(p, li.children.length - 1 - (selecting ? 0 : 1)));
       li.onclick = () => { if (selecting) { selected.has(p.id) ? selected.delete(p.id) : selected.add(p.id); render(); } else setActive(p.id, true); };
       list.append(li);
     });
     drawMarkers(shown);
+  }
+
+  // The coordinates column on the right of each place in the list.
+  function coordsCell(p, rows) {
+    const c = document.createElement("div"); c.className = "coords";
+    c.style.gridRow = `1 / span ${Math.max(1, rows)}`;
+    if (!hasLoc(p)) { const n = document.createElement("span"); n.className = "none"; n.textContent = "No coordinates"; c.append(n); return c; }
+    const lat = p.lat.toFixed(6), lng = p.lng.toFixed(6), pre = p.approx ? "≈ " : "";
+    for (const [lbl, v] of [["lat", lat], ["lng", lng]]) {
+      const d = document.createElement("div");
+      const l = document.createElement("span"); l.className = "lbl"; l.textContent = lbl + " ";
+      d.append(l, pre + v); c.append(d);
+    }
+    c.title = p.approx ? "Approximate, found by name" : "Latitude and longitude";
+    const b = btn("Copy", async () => {
+      const text = `${lat}, ${lng}`;
+      try { await navigator.clipboard.writeText(text); toast(`Copied ${text}`); }
+      catch { toast(`Coordinates: ${text}`); }
+    }, "", `Copy coordinates of ${p.name}`);
+    c.append(b);
+    return c;
   }
 
   function renumber(arr) { arr.forEach((p, i) => { if (p.order !== i + 1) { p.order = i + 1; p.updated = now(); } }); }
