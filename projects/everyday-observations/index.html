@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<title>Everyday observations · dwine1.xyz</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  :root {
+    --bg: #f3f1ec; --fg: #1c1d1a; --muted: #636259; --line: #dcd8cd; --accent: #1f6f5c;
+    --card: #ffffff; --soft: #e9f2ee; --danger: #b42318; --mark: #ffe58a;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #12140f; --fg: #e8e8e1; --muted: #9c9b90; --line: #2c2f27; --accent: #6fd1b4; --card: #1a1d17; --soft: #1b2a24; --danger: #ff8a7a; --mark: #6b5a12; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #12140f; --fg: #e8e8e1; --muted: #9c9b90; --line: #2c2f27; --accent: #6fd1b4; --card: #1a1d17; --soft: #1b2a24; --danger: #ff8a7a; --mark: #6b5a12; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; }
+  .wrap {
+    max-width: 46rem; margin: 0 auto; padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 2rem;
+  }
+  .back { font-family: var(--mono); font-size: .85rem; color: var(--accent); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+  .lede { margin: .5rem 0 0; color: var(--muted); }
+  main { display: grid; gap: 1.5rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+  form { display: grid; gap: .7rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; }
+  input, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .7rem; width: 100%; }
+  textarea { min-height: 7rem; resize: vertical; }
+  #title { font-weight: 700; font-size: 1.05rem; }
+  .clock { font-family: var(--mono); font-size: .8rem; color: var(--muted); display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+  .clock b { color: var(--fg); font-weight: 400; }
+  .draft { display: grid; gap: .3rem; }
+  .draft-head { display: flex; align-items: center; gap: .5rem; }
+  .draft-head label { font-family: var(--mono); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); flex: 1; }
+  .draft-head button { padding: .15rem .55rem; font-size: .8rem; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .row .grow { flex: 1; }
+  .hint { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  @media (max-width: 34rem), (pointer: coarse) { .hint { visibility: hidden; } }
+  button { font: inherit; font-size: .9rem; cursor: pointer; border-radius: 8px; padding: .45rem .85rem; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  button.ghost { border-style: dashed; color: var(--accent); background: transparent; }
+  button.danger { color: var(--danger); }
+  button:hover { filter: brightness(.96); }
+  button:disabled { opacity: .6; cursor: progress; }
+  .tools { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .tools input { flex: 1 1 12rem; width: auto; }
+  .export .label { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .export .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 .25rem; }
+  .count { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
+  li.obs { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .obs-head { padding: .85rem 1rem .7rem; border-bottom: 1px solid var(--line); background: var(--soft); display: grid; gap: .15rem; }
+  .obs-head h2 { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; }
+  .stamp { font-family: var(--mono); font-size: .8rem; color: var(--fg); }
+  .stamp time { display: flex; flex-wrap: wrap; gap: .1rem .4rem; }
+  .stamp time span + span::before { content: "·"; color: var(--muted); margin-right: .4rem; }
+  .stamp .day { color: var(--accent); }
+  .edited { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+  .obs-body { padding: .8rem 1rem .9rem; display: grid; gap: .8rem; }
+  .d { display: grid; gap: .15rem; }
+  .d + .d { border-top: 1px dashed var(--line); padding-top: .7rem; }
+  .d-label { font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); display: flex; gap: .5rem; flex-wrap: wrap; }
+  .d-label span { color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+  mark { background: var(--mark); color: inherit; border-radius: 3px; }
+  .empty { color: var(--muted); text-align: center; padding: 2rem 1rem; border: 1px dashed var(--line); border-radius: 12px; }
+  .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: .6rem .8rem .6rem 1rem; border-radius: 10px; display: flex; gap: .75rem; align-items: center; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+  .toast button { background: transparent; color: var(--bg); border-color: var(--bg); padding: .25rem .6rem; }
+  .toast[hidden] { display: none; }
+</style>
+<script src="../../sync.js?v=3" data-keys="dwine1-observations-v1"></script>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="../../index.html">← All projects</a>
+    <header>
+      <h1>Everyday observations</h1>
+      <p class="lede">A journal of things you notice. Give each observation a title, write Draft 1, and come back for a Draft 2 (or, now and then, a Draft 3). The day, date and time are stamped automatically.</p>
+    </header>
+    <main>
+      <form id="form" autocomplete="off">
+        <input id="title" placeholder="Title of the observation" maxlength="200" aria-label="Title">
+        <div class="clock" id="clockRow"><span id="clockLabel">Will be stamped</span> <b id="clock"></b></div>
+        <div id="drafts"></div>
+        <div class="row">
+          <button type="button" class="ghost" id="addDraft">+ Add Draft 2</button>
+          <span class="hint grow" id="hint">Ctrl/⌘ + Enter to save</span>
+          <button type="button" id="cancel" hidden>Cancel edit</button>
+          <button type="submit" class="primary" id="save">Save observation</button>
+        </div>
+      </form>
+
+      <div class="tools">
+        <input id="search" type="search" placeholder="Search observations" aria-label="Search observations">
+      </div>
+      <div class="tools export" role="group" aria-labelledby="exportLabel">
+        <span class="label" id="exportLabel">Export all</span>
+        <button type="button" id="dl-pdf">PDF</button>
+        <button type="button" id="dl-txt">Text file</button>
+        <button type="button" id="email">Email</button>
+        <button type="button" id="share" hidden>Share…</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" id="export" title="Backup file you can import later">Backup</button>
+        <button type="button" id="import">Import</button>
+        <input type="file" id="file" accept="application/json,.json" hidden>
+      </div>
+      <div class="count" id="count"></div>
+      <ul id="list"></ul>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button type="button" id="undo" hidden>Undo</button></div>
+
+<script>
+(() => {
+  const KEY = "dwine1-observations-v1";
+  const MAX_DRAFTS = 3;
+  const $ = id => document.getElementById(id);
+  const form = $("form"), titleEl = $("title"), draftsEl = $("drafts"), list = $("list"), search = $("search");
+  let items = load();
+  let editingId = null;
+  let lastRemoved = null, toastTimer = null;
+
+  // An observation: { id, title, drafts: [{ text, at }], created, updated }
+  function clean(o) {
+    if (!o || typeof o !== "object") return null;
+    const created = Number(o.created) || Date.now();
+    let drafts = Array.isArray(o.drafts) ? o.drafts : [];
+    drafts = drafts.slice(0, MAX_DRAFTS).map((d, i) => typeof d === "string"
+      ? { text: d, at: created }
+      : { text: String((d && d.text) || ""), at: Number(d && d.at) || created });
+    if (!drafts.length && typeof o.body === "string") drafts = [{ text: o.body, at: created }];
+    return {
+      id: typeof o.id === "string" && o.id ? o.id : uid(),
+      title: String(o.title || ""), drafts, created,
+      updated: Number(o.updated) || created
+    };
+  }
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(data) ? data.map(clean).filter(Boolean) : [];
+    } catch { return []; }
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); }
+    catch { toast("Could not save in this browser. Use Backup to keep a copy."); }
+  }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // "Sunday", "15 November 2026", "17:49:03"
+  const dayOf = t => new Date(t).toLocaleDateString(undefined, { weekday: "long" });
+  const dateOf = t => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  const timeOf = t => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const full = t => `${dayOf(t)}, ${dateOf(t)}, ${timeOf(t)}`;
+  const short = t => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const ord = i => `Draft ${i + 1}`;
+
+  // ---- live clock in the form ----
+  function tick() {
+    if (editingId) {
+      const o = items.find(x => x.id === editingId);
+      $("clockLabel").textContent = "Stamped";
+      $("clock").textContent = o ? full(o.created) : "";
+    } else {
+      $("clockLabel").textContent = "Will be stamped";
+      $("clock").textContent = full(Date.now());
+    }
+  }
+  setInterval(tick, 1000);
+
+  // ---- draft fields in the form ----
+  function draftFields() { return [...draftsEl.querySelectorAll("textarea")]; }
+  function addDraftField(text = "", at = null, focus = false) {
+    const n = draftFields().length; if (n >= MAX_DRAFTS) return;
+    const wrap = document.createElement("div"); wrap.className = "draft";
+    const head = document.createElement("div"); head.className = "draft-head";
+    const label = document.createElement("label"); label.htmlFor = "draft" + n; label.textContent = ord(n);
+    head.append(label);
+    const ta = document.createElement("textarea"); ta.id = "draft" + n;
+    ta.placeholder = n === 0 ? "What did you notice?" : n === 1 ? "A second take…" : "One more pass…";
+    ta.value = text; if (at) ta.dataset.at = at;
+    if (n > 0) {
+      const rm = document.createElement("button"); rm.type = "button"; rm.textContent = "Remove draft";
+      rm.setAttribute("aria-label", `Remove ${ord(n)}`);
+      rm.onclick = () => { wrap.remove(); relabel(); };
+      head.append(rm);
+    }
+    wrap.append(head, ta); draftsEl.append(wrap);
+    relabel();
+    if (focus) ta.focus();
+  }
+  function relabel() {
+    [...draftsEl.children].forEach((w, i) => {
+      w.querySelector("label").textContent = ord(i);
+      w.querySelector("label").htmlFor = "draft" + i; w.querySelector("textarea").id = "draft" + i;
+      const rm = w.querySelector("button"); if (rm) rm.setAttribute("aria-label", `Remove ${ord(i)}`);
+    });
+    const n = draftFields().length;
+    $("addDraft").hidden = n >= MAX_DRAFTS;
+    $("addDraft").textContent = `+ Add ${ord(n)}`;
+  }
+  $("addDraft").onclick = () => addDraftField("", null, true);
+
+  // ---- list ----
+  function highlight(el, text, q) {
+    el.textContent = "";
+    if (!q) { el.textContent = text; return; }
+    const lower = text.toLocaleLowerCase(), ql = q.toLocaleLowerCase();
+    let i = 0, j;
+    while ((j = lower.indexOf(ql, i)) !== -1) {
+      el.append(text.slice(i, j));
+      const m = document.createElement("mark"); m.textContent = text.slice(j, j + q.length); el.append(m);
+      i = j + q.length;
+    }
+    el.append(text.slice(i));
+  }
+  const newestFirst = () => [...items].sort((a, b) => b.created - a.created);
+  const draftsOf = o => o.drafts.filter(d => d.text.trim());
+
+  function render() {
+    const q = search.value.trim(), ql = q.toLocaleLowerCase();
+    const sorted = newestFirst();
+    const shown = q ? sorted.filter(o => [o.title, full(o.created), ...o.drafts.map(d => d.text)].join("\n").toLocaleLowerCase().includes(ql)) : sorted;
+    list.textContent = "";
+    const word = n => `${n} observation${n === 1 ? "" : "s"}`;
+    $("count").textContent = items.length ? (q ? `${shown.length} of ${word(items.length)}` : word(items.length)) : "";
+    if (!shown.length) {
+      const li = document.createElement("li"); li.className = "empty";
+      li.textContent = items.length ? "No observations match your search." : "No observations yet. Write your first one above.";
+      list.append(li); return;
+    }
+    for (const o of shown) {
+      const li = document.createElement("li"); li.className = "obs";
+      const head = document.createElement("div"); head.className = "obs-head";
+      const h = document.createElement("h2"); highlight(h, o.title || "Untitled", q);
+      const st = document.createElement("div"); st.className = "stamp";
+      const t = document.createElement("time"); t.dateTime = new Date(o.created).toISOString();
+      const sd = document.createElement("span"); sd.className = "day"; sd.textContent = dayOf(o.created);
+      const sdt = document.createElement("span"); sdt.textContent = dateOf(o.created);
+      const stm = document.createElement("span"); stm.textContent = timeOf(o.created);
+      t.append(sd, sdt, stm); st.append(t);
+      head.append(h, st);
+      if (o.updated && o.updated - o.created > 1000) {
+        const ed = document.createElement("div"); ed.className = "edited"; ed.textContent = `Edited ${short(o.updated)}`; head.append(ed);
+      }
+      const body = document.createElement("div"); body.className = "obs-body";
+      o.drafts.forEach((d, i) => {
+        if (!d.text.trim()) return;
+        const box = document.createElement("div"); box.className = "d";
+        const lab = document.createElement("div"); lab.className = "d-label"; lab.textContent = ord(i);
+        if (i > 0 || Math.abs(d.at - o.created) > 1000) { const s = document.createElement("span"); s.textContent = short(d.at); lab.append(s); }
+        const p = document.createElement("p"); p.className = "text"; highlight(p, d.text, q);
+        box.append(lab, p); body.append(box);
+      });
+      const actions = document.createElement("div"); actions.className = "actions";
+      if (o.drafts.length < MAX_DRAFTS) {
+        const add = document.createElement("button"); add.type = "button"; add.className = "ghost";
+        add.textContent = `+ ${ord(o.drafts.length)}`;
+        add.onclick = () => startEdit(o.id, true);
+        actions.append(add);
+      }
+      const edit = document.createElement("button"); edit.type = "button"; edit.textContent = "Edit";
+      edit.onclick = () => startEdit(o.id);
+      const del = document.createElement("button"); del.type = "button"; del.className = "danger"; del.textContent = "Remove";
+      del.setAttribute("aria-label", `Remove observation ${o.title || "Untitled"}`);
+      del.onclick = () => remove(o.id);
+      actions.append(edit, del); body.append(actions);
+      li.append(head, body); list.append(li);
+    }
+  }
+
+  function resetForm() {
+    editingId = null; titleEl.value = ""; draftsEl.textContent = ""; addDraftField();
+    $("save").textContent = "Save observation"; $("cancel").hidden = true; tick();
+  }
+  function startEdit(id, newDraft) {
+    const o = items.find(x => x.id === id); if (!o) return;
+    editingId = id; titleEl.value = o.title; draftsEl.textContent = "";
+    o.drafts.forEach(d => addDraftField(d.text, d.at));
+    if (!o.drafts.length) addDraftField();
+    if (newDraft) addDraftField();
+    $("save").textContent = "Update observation"; $("cancel").hidden = false; tick();
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    const f = draftFields(); f[f.length - 1].focus({ preventScroll: true });
+  }
+  function remove(id) {
+    const i = items.findIndex(x => x.id === id); if (i < 0) return;
+    lastRemoved = items[i]; items.splice(i, 1); persist();
+    if (editingId === id) resetForm();
+    render(); toast(`Removed “${lastRemoved.title || "Untitled"}”`, true);
+  }
+  function toast(text, undo) {
+    $("toastText").textContent = text; $("undo").hidden = !undo; $("toast").hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; lastRemoved = null; }, 6000);
+  }
+  $("undo").onclick = () => {
+    if (lastRemoved && !items.some(o => o.id === lastRemoved.id)) { items.push(lastRemoved); persist(); render(); }
+    lastRemoved = null; $("toast").hidden = true;
+  };
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const title = titleEl.value.trim(), now = Date.now();
+    const prev = editingId ? items.find(x => x.id === editingId) : null;
+    const drafts = draftFields().map((ta, i) => {
+      const text = ta.value.replace(/\s+$/, "");
+      const old = prev && prev.drafts[i];
+      // A draft keeps its first time; an emptied draft is dropped.
+      return { text, at: Number(ta.dataset.at) || (old && old.text.trim() === text.trim() ? old.at : now) };
+    }).filter(d => d.text.trim());
+    if (!title && !drafts.length) { titleEl.focus(); return; }
+    if (prev) Object.assign(prev, { title, drafts, updated: now });
+    else items.push({ id: uid(), title, drafts, created: now, updated: now });
+    persist(); resetForm(); search.value = ""; render(); titleEl.focus();
+  });
+  form.addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
+  });
+  $("cancel").onclick = resetForm;
+  search.addEventListener("input", render);
+
+  // ---- backup / import ----
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $("export").onclick = () => download(new Blob([JSON.stringify({ app: "dwine1-observations", version: 1, observations: items }, null, 2)], { type: "application/json" }), `observations-${stamp()}.json`);
+  $("import").onclick = () => $("file").click();
+  $("file").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      const incoming = (Array.isArray(data) ? data : data.observations || data.notes) || [];
+      let added = 0;
+      for (const raw of incoming) {
+        if (!raw || (typeof raw.title !== "string" && !Array.isArray(raw.drafts) && typeof raw.body !== "string")) continue;
+        const o = clean(raw);
+        const existing = items.find(x => x.id === o.id);
+        if (existing) { if (o.updated > (existing.updated || 0)) Object.assign(existing, o); }
+        else { items.push(o); added++; }
+      }
+      persist(); render();
+      toast(`Imported ${added} new observation${added === 1 ? "" : "s"}.`);
+    } catch { toast("That file isn't an observations backup."); }
+  };
+
+  // ---- export all: PDF, text, email, share ----
+  const CDN = "https://cdn.jsdelivr.net/npm/";
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = () => { s.remove(); reject(new Error(src)); };
+      document.head.append(s);
+    });
+  }
+  function needItems() { if (items.length) return true; toast("There are no observations to export yet."); return false; }
+  async function busy(btn, fn) {
+    if (!needItems()) return;
+    const label = btn.textContent; btn.disabled = true; btn.textContent = "Preparing…";
+    try { await fn(); }
+    catch (err) { if (err && err.name !== "AbortError") toast("Couldn't make the file. Check your connection and try again."); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  }
+  function allText() {
+    const out = [`Everyday observations · ${items.length} · exported ${full(Date.now())}`, ""];
+    for (const o of newestFirst()) {
+      out.push("────────────────────", o.title || "Untitled", full(o.created), "");
+      o.drafts.forEach((d, i) => { if (d.text.trim()) out.push(`${ord(i)}${i > 0 ? ` (${short(d.at)})` : ""}`, d.text, ""); });
+    }
+    return out.join("\n");
+  }
+
+  let pdfFont;
+  async function loadPdfFont() {
+    // DejaVu covers Turkish and other accented letters that the built-in PDF fonts lack.
+    if (pdfFont === undefined) {
+      try {
+        const res = await fetch(CDN + "dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf");
+        if (!res.ok) throw new Error(res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        pdfFont = btoa(bin);
+      } catch { pdfFont = null; }
+    }
+    return pdfFont;
+  }
+  async function makePdf() {
+    await loadScript(CDN + "jspdf@2.5.1/dist/jspdf.umd.min.js");
+    const font = await loadPdfFont();
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+    let family = "helvetica";
+    if (font) { doc.addFileToVFS("DejaVuSans.ttf", font); doc.addFont("DejaVuSans.ttf", "DejaVu", "normal"); family = "DejaVu"; }
+    const txt = v => font ? String(v) : String(v).replace(/ı/g, "i").replace(/İ/g, "I").normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    const M = 48, width = W - M * 2;
+    let y = M;
+    const line = (text, size, color, gap) => {
+      doc.setFontSize(size); doc.setTextColor(color);
+      const lh = size * 1.35;
+      for (const l of doc.splitTextToSize(txt(text), width)) {
+        if (y + lh > H - M) { doc.addPage(); y = M; }
+        doc.text(l, M, y + size); y += lh;
+      }
+      y += gap || 0;
+    };
+    doc.setFont(family, "normal");
+    line("Everyday observations", 20, 20, 2);
+    line(`${items.length} observation${items.length === 1 ? "" : "s"} · exported ${full(Date.now())}`, 9, 110, 14);
+    for (const o of newestFirst()) {
+      if (y + 70 > H - M) { doc.addPage(); y = M; }
+      doc.setDrawColor(210); doc.line(M, y, W - M, y); y += 10;
+      line(o.title || "Untitled", 13, 20, 1);
+      line(full(o.created), 9, 31, 8);
+      o.drafts.forEach((d, i) => {
+        if (!d.text.trim()) return;
+        line(`${ord(i).toUpperCase()}${i > 0 ? `  ·  ${short(d.at)}` : ""}`, 8, 120, 2);
+        line(d.text, 10.5, 40, 8);
+      });
+      y += 8;
+    }
+    return doc;
+  }
+
+  $("dl-pdf").onclick = e => busy(e.currentTarget, async () => (await makePdf()).save(`observations-${stamp()}.pdf`));
+  $("dl-txt").onclick = () => { if (needItems()) download(new Blob([allText()], { type: "text/plain;charset=utf-8" }), `observations-${stamp()}.txt`); };
+  $("email").onclick = () => {
+    if (!needItems()) return;
+    const LIMIT = 6000;
+    let body = allText();
+    if (body.length > LIMIT) body = body.slice(0, LIMIT) + "\n\n… (shortened; use the PDF or Text file button for everything)";
+    location.href = `mailto:?subject=${encodeURIComponent(`My observations (${stamp()})`)}&body=${encodeURIComponent(body)}`;
+  };
+  if (navigator.share) {
+    $("share").hidden = false;
+    let prepared = null;
+    const shareBtn = $("share");
+    shareBtn.onclick = async () => {
+      if (!needItems()) return;
+      const key = JSON.stringify(items), title = `My observations (${stamp()})`;
+      if (!prepared || prepared.key !== key) {
+        shareBtn.disabled = true; shareBtn.textContent = "Preparing…";
+        let file = null;
+        try {
+          const blob = (await makePdf()).output("blob");
+          file = new File([blob], `observations-${stamp()}.pdf`, { type: "application/pdf" });
+          if (!(navigator.canShare && navigator.canShare({ files: [file] }))) file = null;
+        } catch {}
+        prepared = { key, data: file ? { title, files: [file] } : { title, text: allText() } };
+        shareBtn.disabled = false; shareBtn.textContent = "Share…";
+      }
+      try { await navigator.share(prepared.data); }
+      catch (err) {
+        if (err && err.name === "NotAllowedError") { shareBtn.textContent = "Tap again to share"; return; }
+        if (err && err.name !== "AbortError") toast("Sharing didn't work here. Try the PDF or Email button.");
+      }
+      shareBtn.textContent = "Share…";
+    };
+  }
+
+  window.addEventListener("storage", e => { if (e.key === KEY) { items = load(); render(); } });
+  resetForm();
+  render();
+})();
+</script>
+<script src="../../top.js?v=1" defer></script>
+</body>
+</html>
