@@ -67,7 +67,16 @@
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
   li.obs { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .obs-head { padding: .85rem 1rem .7rem; border-bottom: 1px solid var(--line); background: var(--soft); display: grid; gap: .15rem; }
-  .obs-head h2 { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; }
+  .obs-head h2 { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; flex: 1; }
+  .title-row { display: flex; gap: .75rem; align-items: flex-start; }
+  .fold { flex: none; font-size: .8rem; padding: .2rem .65rem; border-radius: 999px; color: var(--accent); white-space: nowrap; }
+  .fold::before { content: "▾ "; }
+  li.obs.min .fold::before { content: "▸ "; }
+  li.obs.min .obs-body { display: none; }
+  li.obs.min .obs-head { border-bottom: 0; }
+  .count-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .count-row .count { flex: 1; }
+  .count-row button { font-size: .8rem; padding: .25rem .7rem; }
   .stamp { font-family: var(--mono); font-size: .8rem; color: var(--fg); }
   .stamp time { display: flex; flex-wrap: wrap; gap: .1rem .4rem; }
   .stamp time span + span::before { content: "·"; color: var(--muted); margin-right: .4rem; }
@@ -127,7 +136,8 @@
         <button type="button" id="import">Import</button>
         <input type="file" id="file" accept="application/json,.json" hidden>
       </div>
-      <div class="count" id="count"></div>
+      <div class="count-row"><div class="count" id="count"></div>
+        <button type="button" id="minAll" hidden>Minimize all</button><button type="button" id="maxAll" hidden>Show all in full</button></div>
       <ul id="list"></ul>
     </main>
   </div>
@@ -142,6 +152,11 @@
   let items = load();
   let editingId = null;
   let lastRemoved = null, toastTimer = null;
+  // Which observations are minimized: kept on this device only.
+  const MIN_KEY = "dwine1-observations-minimized";
+  let minimized = new Set();
+  try { minimized = new Set(JSON.parse(localStorage.getItem(MIN_KEY) || "[]")); } catch {}
+  function saveMin() { try { localStorage.setItem(MIN_KEY, JSON.stringify([...minimized])); } catch {} }
 
   // An observation: { id, title, drafts: [{ text, at, edited, editedAt }], created, updated }
   function clean(o) {
@@ -257,6 +272,7 @@
     list.textContent = "";
     const word = n => `${n} observation${n === 1 ? "" : "s"}`;
     $("count").textContent = items.length ? (q ? `${shown.length} of ${word(items.length)}` : word(items.length)) : "";
+    $("minAll").hidden = $("maxAll").hidden = items.length < 2 || !!q;
     if (!shown.length) {
       const li = document.createElement("li"); li.className = "empty";
       li.textContent = items.length ? "No observations match your search." : "No observations yet. Write your first one above.";
@@ -266,13 +282,26 @@
       const li = document.createElement("li"); li.className = "obs";
       const head = document.createElement("div"); head.className = "obs-head";
       const h = document.createElement("h2"); highlight(h, o.title || "Untitled", q);
+      const isMin = minimized.has(o.id) && !q;
+      if (isMin) li.classList.add("min");
+      const fold = document.createElement("button"); fold.type = "button"; fold.className = "fold";
+      fold.textContent = isMin ? "Show in full" : "Minimize";
+      fold.setAttribute("aria-expanded", String(!isMin));
+      fold.onclick = () => {
+        const nowMin = !li.classList.contains("min");
+        li.classList.toggle("min", nowMin);
+        fold.textContent = nowMin ? "Show in full" : "Minimize";
+        fold.setAttribute("aria-expanded", String(!nowMin));
+        nowMin ? minimized.add(o.id) : minimized.delete(o.id); saveMin();
+      };
+      const tr = document.createElement("div"); tr.className = "title-row"; tr.append(h, fold);
       const st = document.createElement("div"); st.className = "stamp";
       const t = document.createElement("time"); t.dateTime = new Date(o.created).toISOString();
       const sd = document.createElement("span"); sd.className = "day"; sd.textContent = dayOf(o.created);
       const sdt = document.createElement("span"); sdt.textContent = dateOf(o.created);
       const stm = document.createElement("span"); stm.textContent = timeOf(o.created);
       t.append(sd, sdt, stm); st.append(t);
-      head.append(h, st);
+      head.append(tr, st);
       if (o.updated && o.updated - o.created > 1000) {
         const ed = document.createElement("div"); ed.className = "edited"; ed.textContent = `Edited ${short(o.updated)}`; head.append(ed);
       }
@@ -367,6 +396,8 @@
   });
   $("cancel").onclick = resetForm;
   search.addEventListener("input", render);
+  $("minAll").onclick = () => { items.forEach(o => minimized.add(o.id)); saveMin(); render(); };
+  $("maxAll").onclick = () => { minimized.clear(); saveMin(); render(); };
 
   // ---- backup / import ----
   const stamp = () => new Date().toISOString().slice(0, 10);
