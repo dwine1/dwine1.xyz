@@ -87,6 +87,12 @@
   .d + .d { border-top: 1px dashed var(--line); padding-top: .7rem; }
   .d-label { font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); display: flex; gap: .5rem; flex-wrap: wrap; }
   .d-label span { color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .d-row { display: flex; gap: .75rem; align-items: center; }
+  .d-row .d-label { flex: 1; }
+  .dfold { flex: none; font-size: .75rem; padding: .1rem .55rem; border-radius: 999px; color: var(--accent); white-space: nowrap; }
+  .dfold::before { content: "▾ "; }
+  .d.dmin .dfold::before { content: "▸ "; }
+  .d.dmin > :not(.d-row) { display: none; }
   .text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .d .pair { gap: .4rem 1rem; }
   .ev { border-left: 3px solid var(--accent); padding-left: .75rem; }
@@ -306,11 +312,21 @@
         const ed = document.createElement("div"); ed.className = "edited"; ed.textContent = `Edited ${short(o.updated)}`; head.append(ed);
       }
       const body = document.createElement("div"); body.className = "obs-body";
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         const box = document.createElement("div"); box.className = "d";
         const lab = document.createElement("div"); lab.className = "d-label"; lab.textContent = ord(i);
         if (i > 0 || Math.abs(d.at - o.created) > 1000) { const s = document.createElement("span"); s.textContent = short(d.at); lab.append(s); }
+        const dKey = o.id + ":" + i, dMin = minimized.has(dKey) && !q;
+        if (dMin) box.classList.add("dmin");
+        const dfold = document.createElement("button"); dfold.type = "button"; dfold.className = "dfold";
+        const setD = m => { dfold.textContent = m ? "Show draft" : "Collapse draft"; dfold.setAttribute("aria-expanded", String(!m)); dfold.setAttribute("aria-label", `${m ? "Show" : "Collapse"} ${ord(i)}`); };
+        setD(dMin);
+        dfold.onclick = () => {
+          const m = !box.classList.contains("dmin"); box.classList.toggle("dmin", m); setD(m);
+          m ? minimized.add(dKey) : minimized.delete(dKey); saveMin();
+        };
+        const row = document.createElement("div"); row.className = "d-row"; row.append(lab, dfold);
         const p = document.createElement("p"); p.className = "text"; highlight(p, d.text, q);
         if (d.edited && d.edited.trim()) {
           const pair = document.createElement("div"); pair.className = "pair";
@@ -320,8 +336,8 @@
           if (d.editedAt) { const t2 = document.createElement("span"); t2.textContent = "· " + short(d.editedAt); s2.append(t2); }
           const p2 = document.createElement("p"); p2.className = "text"; highlight(p2, d.edited, q);
           c1.append(s1, p); c2.append(s2, p2); pair.append(c1, c2);
-          box.append(lab, pair);
-        } else box.append(lab, p);
+          box.append(row, pair);
+        } else box.append(row, p);
         body.append(box);
       });
       const actions = document.createElement("div"); actions.className = "actions";
@@ -449,7 +465,7 @@
     const out = [`Everyday observations · ${items.length} · exported ${full(Date.now())}`, ""];
     for (const o of newestFirst()) {
       out.push("────────────────────", o.title || "Untitled", full(o.created), "");
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         out.push(`${ord(i)}${i > 0 ? ` (${short(d.at)})` : ""}`, d.text, "");
         if (d.edited.trim()) out.push(`${ord(i)}, edited version${d.editedAt ? ` (${short(d.editedAt)})` : ""}`, d.edited, "");
@@ -500,7 +516,7 @@
       doc.setDrawColor(210); doc.line(M, y, W - M, y); y += 10;
       line(o.title || "Untitled", 13, 20, 1);
       line(full(o.created), 9, 31, 8);
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         line(`${ord(i).toUpperCase()}${i > 0 ? `  ·  ${short(d.at)}` : ""}`, 8, 120, 2);
         if (d.text.trim()) line(d.text, 10.5, 40, 8);
