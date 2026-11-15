@@ -312,7 +312,7 @@
         const ed = document.createElement("div"); ed.className = "edited"; ed.textContent = `Edited ${short(o.updated)}`; head.append(ed);
       }
       const body = document.createElement("div"); body.className = "obs-body";
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         const box = document.createElement("div"); box.className = "d";
         const lab = document.createElement("div"); lab.className = "d-label"; lab.textContent = ord(i);
@@ -465,7 +465,7 @@
     const out = [`Everyday observations · ${items.length} · exported ${full(Date.now())}`, ""];
     for (const o of newestFirst()) {
       out.push("────────────────────", o.title || "Untitled", full(o.created), "");
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         out.push(`${ord(i)}${i > 0 ? ` (${short(d.at)})` : ""}`, d.text, "");
         if (d.edited.trim()) out.push(`${ord(i)}, edited version${d.editedAt ? ` (${short(d.editedAt)})` : ""}`, d.edited, "");
@@ -516,7 +516,7 @@
       doc.setDrawColor(210); doc.line(M, y, W - M, y); y += 10;
       line(o.title || "Untitled", 13, 20, 1);
       line(full(o.created), 9, 31, 8);
-      o.drafts.forEach((d, i) => {
+      [...o.drafts.entries()].reverse().forEach(([i, d]) => {
         if (!d.text.trim() && !d.edited.trim()) return;
         line(`${ord(i).toUpperCase()}${i > 0 ? `  ·  ${short(d.at)}` : ""}`, 8, 120, 2);
         if (d.text.trim()) line(d.text, 10.5, 40, 8);
