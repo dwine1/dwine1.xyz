@@ -187,11 +187,11 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   // "Sunday", "15 November 2026", "17:49:03"
-  const dayOf = t => new Date(t).toLocaleDateString(undefined, { weekday: "long" });
-  const dateOf = t => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
-  const timeOf = t => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dayOf = t => new Date(t).toLocaleDateString("en-US", { weekday: "long" });
+  const dateOf = t => new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+  const timeOf = t => new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
   const full = t => `${dayOf(t)}, ${dateOf(t)}, ${timeOf(t)}`;
-  const short = t => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const short = t => new Date(t).toLocaleString("en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
   const ord = i => `Draft ${i + 1}`;
 
   // ---- live clock in the form ----
